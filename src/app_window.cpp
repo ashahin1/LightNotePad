@@ -1095,7 +1095,7 @@ LRESULT AppWindow::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
         case IDM_FILE_NEW_WINDOW: {
             wchar_t exePath[MAX_PATH];
             GetModuleFileNameW(nullptr, exePath, MAX_PATH);
-            ShellExecuteW(nullptr, L"open", exePath, nullptr, nullptr, SW_SHOWNORMAL);
+            ShellExecuteW(nullptr, L"open", exePath, L"--new-window", nullptr, SW_SHOWNORMAL);
             break;
         }
         case IDM_FILE_OPEN:       OpenFileDialog(); break;

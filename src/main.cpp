@@ -81,6 +81,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE /*hPrevInstance*/, LPWSTR /*l
     bool isSilent = false;
     bool doRegister = false;
     bool doUnregister = false;
+    bool forceNewWindow = false;
 
     int argc = 0;
     LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(), &argc);
@@ -93,6 +94,11 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE /*hPrevInstance*/, LPWSTR /*l
                 doRegister = true;
             } else if (_wcsicmp(arg.c_str(), L"/unregister") == 0 || _wcsicmp(arg.c_str(), L"-unregister") == 0) {
                 doUnregister = true;
+            } else if (_wcsicmp(arg.c_str(), L"--new-window") == 0 ||
+                       _wcsicmp(arg.c_str(), L"-new-window") == 0 ||
+                       _wcsicmp(arg.c_str(), L"/new-window") == 0 ||
+                       _wcsicmp(arg.c_str(), L"-n") == 0) {
+                forceNewWindow = true;
             } else if (!arg.empty() && arg[0] != L'-' && arg[0] != L'/') {
                 initialFiles.push_back(arg);
             }
@@ -119,24 +125,27 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE /*hPrevInstance*/, LPWSTR /*l
     }
 
     // Single-instance forwarding with smart tabs
-    HANDLE hMutex = CreateMutexW(nullptr, FALSE, SINGLE_INSTANCE_MUTEX);
-    if (GetLastError() == ERROR_ALREADY_EXISTS) {
-        HWND hExisting = FindWindowW(WINDOW_CLASS_NAME, nullptr);
-        if (hExisting) {
-            for (const auto& file : initialFiles) {
-                COPYDATASTRUCT cds = {};
-                cds.dwData = 1;
-                cds.cbData = static_cast<DWORD>((file.length() + 1) * sizeof(wchar_t));
-                cds.lpData = const_cast<wchar_t*>(file.c_str());
-                SendMessageW(hExisting, WM_COPYDATA, 0, reinterpret_cast<LPARAM>(&cds));
+    HANDLE hMutex = nullptr;
+    if (!forceNewWindow) {
+        hMutex = CreateMutexW(nullptr, FALSE, SINGLE_INSTANCE_MUTEX);
+        if (GetLastError() == ERROR_ALREADY_EXISTS) {
+            HWND hExisting = FindWindowW(WINDOW_CLASS_NAME, nullptr);
+            if (hExisting) {
+                for (const auto& file : initialFiles) {
+                    COPYDATASTRUCT cds = {};
+                    cds.dwData = 1;
+                    cds.cbData = static_cast<DWORD>((file.length() + 1) * sizeof(wchar_t));
+                    cds.lpData = const_cast<wchar_t*>(file.c_str());
+                    SendMessageW(hExisting, WM_COPYDATA, 0, reinterpret_cast<LPARAM>(&cds));
+                }
+                if (IsIconic(hExisting)) {
+                    ShowWindow(hExisting, SW_RESTORE);
+                }
+                SetForegroundWindow(hExisting);
             }
-            if (IsIconic(hExisting)) {
-                ShowWindow(hExisting, SW_RESTORE);
-            }
-            SetForegroundWindow(hExisting);
+            if (hMutex) CloseHandle(hMutex);
+            return 0;
         }
-        if (hMutex) CloseHandle(hMutex);
-        return 0;
     }
 
     AppWindow app;

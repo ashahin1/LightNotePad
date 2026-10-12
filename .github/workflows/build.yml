@@ -1,0 +1,42 @@
+name: Build LightNotePad
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Native Windows Executable
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup MSVC Toolchain
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Compile LightNotePad
+        shell: powershell
+        run: |
+          powershell -ExecutionPolicy Bypass -File .\build.ps1
+
+      - name: Verify Binary Output
+        shell: powershell
+        run: |
+          if (-not (Test-Path "bin\LightNotePad.exe")) {
+            Write-Error "Binary bin\LightNotePad.exe was not generated!"
+            exit 1
+          }
+          $sizeKB = (Get-Item "bin\LightNotePad.exe").Length / 1KB
+          Write-Host ("Build successful. Binary size: {0:N1} KB" -f $sizeKB)
+
+      - name: Upload Standalone Executable Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LightNotePad-Windows-x64
+          path: bin\LightNotePad.exe
+          if-no-files-found: error

@@ -23,6 +23,7 @@
 #include <uxtheme.h>
 #include <shlwapi.h>
 #include <shellapi.h>
+#include <shlobj.h>
 
 #include <string>
 #include <vector>

@@ -166,11 +166,10 @@ void AppWindow::CreateEditorFont() {
 
     int fontHeight = -MulDiv(m_editorFontSizePt, m_dpi, 72);
 
-    // Try Cascadia Mono first
     m_hEditorFont = CreateFontW(
-        fontHeight, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+        fontHeight, 0, 0, 0, m_editorFontWeight, m_editorFontItalic ? TRUE : FALSE, FALSE, FALSE,
         DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-        CLEARTYPE_QUALITY, FIXED_PITCH | FF_MODERN, m_fontFamily.c_str()
+        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, m_fontFamily.c_str()
     );
 
     for (auto& tab : m_tabs) {
@@ -186,6 +185,11 @@ void AppWindow::CreateAppMenu() {
     AppendMenuW(hFileMenu, MF_STRING, IDM_FILE_NEW, L"New Tab\tCtrl+T");
     AppendMenuW(hFileMenu, MF_STRING, IDM_FILE_NEW_WINDOW, L"New Window\tCtrl+Shift+N");
     AppendMenuW(hFileMenu, MF_STRING, IDM_FILE_OPEN, L"Open...\tCtrl+O");
+
+    m_hRecentMenu = CreatePopupMenu();
+    AppendMenuW(hFileMenu, MF_POPUP, reinterpret_cast<UINT_PTR>(m_hRecentMenu), L"Open &Recent");
+    AppendMenuW(hFileMenu, MF_SEPARATOR, 0, nullptr);
+
     AppendMenuW(hFileMenu, MF_STRING, IDM_FILE_SAVE, L"Save\tCtrl+S");
     AppendMenuW(hFileMenu, MF_STRING, IDM_FILE_SAVEAS, L"Save As...\tCtrl+Shift+S");
     AppendMenuW(hFileMenu, MF_SEPARATOR, 0, nullptr);
@@ -219,6 +223,7 @@ void AppWindow::CreateAppMenu() {
     // View Menu
     HMENU hViewMenu = CreatePopupMenu();
     AppendMenuW(hViewMenu, MF_STRING | MF_CHECKED, IDM_VIEW_WORDWRAP, L"Word Wrap\tAlt+Z");
+    AppendMenuW(hViewMenu, MF_STRING, IDM_VIEW_FONT, L"Font...");
     AppendMenuW(hViewMenu, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(hViewMenu, MF_STRING, IDM_VIEW_ZOOMIN, L"Zoom In\tCtrl++");
     AppendMenuW(hViewMenu, MF_STRING, IDM_VIEW_ZOOMOUT, L"Zoom Out\tCtrl+-");
@@ -447,6 +452,7 @@ void AppWindow::OpenFileDialog() {
         } else {
             CreateNewTab(szFile);
         }
+        AddRecentFile(szFile);
     }
 }
 
@@ -472,6 +478,7 @@ bool AppWindow::SaveCurrentFile(bool saveAs) {
         if (GetSaveFileNameW(&ofn)) {
             if (active->SaveFile(szFile)) {
                 UpdateWindowTitle();
+                AddRecentFile(szFile);
                 return true;
             }
         }
@@ -479,6 +486,7 @@ bool AppWindow::SaveCurrentFile(bool saveAs) {
     } else {
         if (active->Save()) {
             UpdateWindowTitle();
+            AddRecentFile(active->GetFilePath());
             return true;
         }
         return false;
@@ -676,6 +684,221 @@ void AppWindow::ShowShortcutsDialog() {
     ShortcutsDialog::Show(m_hWnd, m_hInstance, m_darkMode, m_dpi);
 }
 
+void AppWindow::LoadFontSettings() {
+    HKEY hKey = nullptr;
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\LightNotePad\\Font", 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
+        wchar_t faceBuffer[LF_FACESIZE] = {};
+        DWORD faceSize = sizeof(faceBuffer);
+        if (RegQueryValueExW(hKey, L"FontFace", nullptr, nullptr, reinterpret_cast<LPBYTE>(faceBuffer), &faceSize) == ERROR_SUCCESS && faceBuffer[0] != L'\0') {
+            m_fontFamily = faceBuffer;
+        }
+
+        DWORD sizeVal = 0;
+        DWORD dwSize = sizeof(sizeVal);
+        if (RegQueryValueExW(hKey, L"FontSize", nullptr, nullptr, reinterpret_cast<LPBYTE>(&sizeVal), &dwSize) == ERROR_SUCCESS && sizeVal >= 6 && sizeVal <= 144) {
+            m_editorFontSizePt = static_cast<int>(sizeVal);
+        }
+
+        DWORD weightVal = 0;
+        dwSize = sizeof(weightVal);
+        if (RegQueryValueExW(hKey, L"FontWeight", nullptr, nullptr, reinterpret_cast<LPBYTE>(&weightVal), &dwSize) == ERROR_SUCCESS && weightVal > 0) {
+            m_editorFontWeight = static_cast<int>(weightVal);
+        }
+
+        DWORD italicVal = 0;
+        dwSize = sizeof(italicVal);
+        if (RegQueryValueExW(hKey, L"FontItalic", nullptr, nullptr, reinterpret_cast<LPBYTE>(&italicVal), &dwSize) == ERROR_SUCCESS) {
+            m_editorFontItalic = (italicVal != 0);
+        }
+
+        RegCloseKey(hKey);
+    }
+}
+
+void AppWindow::SaveFontSettings() {
+    HKEY hKey = nullptr;
+    if (RegCreateKeyExW(HKEY_CURRENT_USER, L"Software\\LightNotePad\\Font", 0, nullptr, 0, KEY_WRITE, nullptr, &hKey, nullptr) == ERROR_SUCCESS) {
+        RegSetValueExW(hKey, L"FontFace", 0, REG_SZ,
+            reinterpret_cast<const BYTE*>(m_fontFamily.c_str()),
+            static_cast<DWORD>((m_fontFamily.size() + 1) * sizeof(wchar_t)));
+
+        DWORD sizeVal = static_cast<DWORD>(m_editorFontSizePt);
+        RegSetValueExW(hKey, L"FontSize", 0, REG_DWORD, reinterpret_cast<const BYTE*>(&sizeVal), sizeof(sizeVal));
+
+        DWORD weightVal = static_cast<DWORD>(m_editorFontWeight);
+        RegSetValueExW(hKey, L"FontWeight", 0, REG_DWORD, reinterpret_cast<const BYTE*>(&weightVal), sizeof(weightVal));
+
+        DWORD italicVal = m_editorFontItalic ? 1 : 0;
+        RegSetValueExW(hKey, L"FontItalic", 0, REG_DWORD, reinterpret_cast<const BYTE*>(&italicVal), sizeof(italicVal));
+
+        RegCloseKey(hKey);
+    }
+}
+
+void AppWindow::OpenFontDialog() {
+    LOGFONTW lf = {};
+    int fontHeight = -MulDiv(m_editorFontSizePt, m_dpi, 72);
+    lf.lfHeight = fontHeight;
+    lf.lfWeight = m_editorFontWeight;
+    lf.lfItalic = m_editorFontItalic ? TRUE : FALSE;
+    wcsncpy_s(lf.lfFaceName, m_fontFamily.c_str(), LF_FACESIZE - 1);
+
+    CHOOSEFONTW cf = { sizeof(CHOOSEFONTW) };
+    cf.hwndOwner = m_hWnd;
+    cf.lpLogFont = &lf;
+    cf.Flags = CF_INITTOLOGFONTSTRUCT | CF_SCREENFONTS | CF_FORCEFONTEXIST;
+
+    if (ChooseFontW(&cf)) {
+        m_fontFamily = lf.lfFaceName;
+        m_editorFontWeight = lf.lfWeight;
+        m_editorFontItalic = (lf.lfItalic != FALSE);
+        if (cf.iPointSize > 0) {
+            m_editorFontSizePt = cf.iPointSize / 10;
+        } else if (lf.lfHeight != 0) {
+            m_editorFontSizePt = MulDiv(std::abs(lf.lfHeight), 72, m_dpi);
+        }
+
+        CreateEditorFont();
+        SaveFontSettings();
+    }
+}
+
+void AppWindow::LoadRecentFiles() {
+    m_recentFiles.clear();
+    HKEY hKey = nullptr;
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\LightNotePad\\RecentFiles", 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
+        for (int i = 1; i <= 9; ++i) {
+            std::wstring valName = L"File" + std::to_wstring(i);
+            wchar_t pathBuffer[MAX_PATH] = {};
+            DWORD dwSize = sizeof(pathBuffer);
+            DWORD dwType = 0;
+            if (RegQueryValueExW(hKey, valName.c_str(), nullptr, &dwType, reinterpret_cast<LPBYTE>(pathBuffer), &dwSize) == ERROR_SUCCESS && dwType == REG_SZ && pathBuffer[0] != L'\0') {
+                m_recentFiles.push_back(pathBuffer);
+            }
+        }
+        RegCloseKey(hKey);
+    }
+}
+
+void AppWindow::SaveRecentFiles() {
+    HKEY hKey = nullptr;
+    if (RegCreateKeyExW(HKEY_CURRENT_USER, L"Software\\LightNotePad\\RecentFiles", 0, nullptr, 0, KEY_WRITE, nullptr, &hKey, nullptr) == ERROR_SUCCESS) {
+        for (int i = 0; i < 9; ++i) {
+            std::wstring valName = L"File" + std::to_wstring(i + 1);
+            if (i < static_cast<int>(m_recentFiles.size())) {
+                const auto& path = m_recentFiles[i];
+                RegSetValueExW(hKey, valName.c_str(), 0, REG_SZ,
+                    reinterpret_cast<const BYTE*>(path.c_str()),
+                    static_cast<DWORD>((path.size() + 1) * sizeof(wchar_t)));
+            } else {
+                RegDeleteValueW(hKey, valName.c_str());
+            }
+        }
+        RegCloseKey(hKey);
+    }
+}
+
+void AppWindow::AddRecentFile(const std::wstring& path) {
+    if (path.empty()) return;
+
+    wchar_t fullPath[MAX_PATH] = {};
+    if (GetFullPathNameW(path.c_str(), MAX_PATH, fullPath, nullptr) > 0) {
+        // Windows Jump List notification
+        SHAddToRecentDocs(SHARD_PATHW, fullPath);
+
+        // Remove if already present (case-insensitive)
+        auto it = std::remove_if(m_recentFiles.begin(), m_recentFiles.end(),
+            [&fullPath](const std::wstring& item) {
+                return _wcsicmp(item.c_str(), fullPath) == 0;
+            });
+        m_recentFiles.erase(it, m_recentFiles.end());
+
+        // Insert at the beginning
+        m_recentFiles.insert(m_recentFiles.begin(), fullPath);
+
+        // Limit to 9 items
+        if (m_recentFiles.size() > 9) {
+            m_recentFiles.resize(9);
+        }
+
+        SaveRecentFiles();
+        UpdateRecentMenu();
+    }
+}
+
+void AppWindow::ClearRecentFiles() {
+    m_recentFiles.clear();
+    SaveRecentFiles();
+    UpdateRecentMenu();
+}
+
+void AppWindow::UpdateRecentMenu() {
+    if (!m_hRecentMenu) return;
+
+    while (GetMenuItemCount(m_hRecentMenu) > 0) {
+        RemoveMenu(m_hRecentMenu, 0, MF_BYPOSITION);
+    }
+
+    if (m_recentFiles.empty()) {
+        AppendMenuW(m_hRecentMenu, MF_STRING | MF_GRAYED, 0, L"(No Recent Files)");
+    } else {
+        for (size_t i = 0; i < m_recentFiles.size(); ++i) {
+            wchar_t compactPath[MAX_PATH] = {};
+            PathCompactPathExW(compactPath, m_recentFiles[i].c_str(), 60, 0);
+
+            // Double ampersands so Win32 menu doesn't treat file path '&' as mnemonics
+            std::wstring safePath;
+            safePath.reserve(wcslen(compactPath) + 4);
+            for (const wchar_t* p = compactPath; *p; ++p) {
+                if (*p == L'&') {
+                    safePath += L"&&";
+                } else {
+                    safePath += *p;
+                }
+            }
+
+            std::wstring itemText = L"&" + std::to_wstring(i + 1) + L"  " + safePath;
+            AppendMenuW(m_hRecentMenu, MF_STRING, IDM_FILE_RECENT_FIRST + static_cast<UINT>(i), itemText.c_str());
+        }
+
+        AppendMenuW(m_hRecentMenu, MF_SEPARATOR, 0, nullptr);
+        AppendMenuW(m_hRecentMenu, MF_STRING, IDM_FILE_RECENT_CLEAR, L"&Clear Recent List");
+    }
+}
+
+void AppWindow::OpenRecentFile(int index) {
+    if (index < 0 || index >= static_cast<int>(m_recentFiles.size())) {
+        return;
+    }
+
+    std::wstring path = m_recentFiles[index];
+
+    // Lazy disk validation: check only on click
+    DWORD attrs = GetFileAttributesW(path.c_str());
+    if (attrs == INVALID_FILE_ATTRIBUTES || (attrs & FILE_ATTRIBUTE_DIRECTORY)) {
+        std::wstring msg = L"The file:\n" + path + L"\n\ndoes not exist or is no longer accessible.\nWould you like to remove it from the recent files list?";
+        if (MessageBoxW(m_hWnd, msg.c_str(), L"LightNotePad", MB_YESNO | MB_ICONQUESTION) == IDYES) {
+            m_recentFiles.erase(m_recentFiles.begin() + index);
+            SaveRecentFiles();
+            UpdateRecentMenu();
+        }
+        return;
+    }
+
+    // Open file into current clean tab or new tab
+    EditorTab* active = GetActiveTab();
+    if (active && active->GetFilePath().empty() && !active->IsDirty()) {
+        active->OpenFile(path);
+        UpdateWindowTitle();
+    } else {
+        CreateNewTab(path);
+    }
+
+    // Move to top of MRU
+    AddRecentFile(path);
+}
+
+
 bool AppWindow::Create(HINSTANCE hInstance, int nCmdShow, const std::vector<std::wstring>& initialFiles) {
     m_hInstance = hInstance;
 
@@ -709,6 +932,7 @@ bool AppWindow::Create(HINSTANCE hInstance, int nCmdShow, const std::vector<std:
     UINT dpi = GetDpiForWindow(m_hWnd);
     m_dpi = (dpi == 0) ? 96 : dpi;
 
+    LoadFontSettings();
     CreateAppMenu();
     CreateAccelerators();
     CreateEditorFont();
@@ -735,12 +959,16 @@ bool AppWindow::Create(HINSTANCE hInstance, int nCmdShow, const std::vector<std:
     }
     CheckMenuItem(m_hMenu, IDM_VIEW_WORDWRAP, m_wordWrap ? MF_CHECKED : MF_UNCHECKED);
 
+    LoadRecentFiles();
+    UpdateRecentMenu();
+
     // Open initial files or blank tab
     if (initialFiles.empty()) {
         CreateNewTab();
     } else {
         for (const auto& f : initialFiles) {
             CreateNewTab(f);
+            AddRecentFile(f);
         }
     }
 
@@ -845,6 +1073,11 @@ LRESULT AppWindow::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
             return 0;
         }
 
+        if (id >= IDM_FILE_RECENT_FIRST && id <= IDM_FILE_RECENT_LAST) {
+            OpenRecentFile(id - IDM_FILE_RECENT_FIRST);
+            return 0;
+        }
+
         switch (id) {
         case IDM_FILE_NEW:        CreateNewTab(); break;
         case IDM_FILE_NEW_WINDOW: {
@@ -854,6 +1087,7 @@ LRESULT AppWindow::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
             break;
         }
         case IDM_FILE_OPEN:       OpenFileDialog(); break;
+        case IDM_FILE_RECENT_CLEAR: ClearRecentFiles(); break;
         case IDM_FILE_SAVE:       SaveCurrentFile(false); break;
         case IDM_FILE_SAVEAS:     SaveCurrentFile(true); break;
         case IDM_FILE_CLOSETAB: {
@@ -878,6 +1112,7 @@ LRESULT AppWindow::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
         case IDM_SEARCH_REPLACE:  OpenFindDialog(true); break;
 
         case IDM_VIEW_WORDWRAP:   ToggleWordWrap(); break;
+        case IDM_VIEW_FONT:       OpenFontDialog(); break;
         case IDM_VIEW_ZOOMIN:     AdjustZoom(10); break;
         case IDM_VIEW_ZOOMOUT:    AdjustZoom(-10); break;
         case IDM_VIEW_ZOOMRESET:  ResetZoom(); break;
@@ -928,6 +1163,7 @@ LRESULT AppWindow::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
             const wchar_t* pFilePath = reinterpret_cast<const wchar_t*>(pCds->lpData);
             if (pFilePath && *pFilePath) {
                 CreateNewTab(pFilePath);
+                AddRecentFile(pFilePath);
             }
         }
         return TRUE;
@@ -945,6 +1181,7 @@ LRESULT AppWindow::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
                 } else {
                     CreateNewTab(szFile);
                 }
+                AddRecentFile(szFile);
             }
         }
         DragFinish(hDrop);

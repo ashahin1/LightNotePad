@@ -32,9 +32,14 @@
 #define IDM_VIEW_ZOOMRESET      233
 #define IDM_VIEW_STATUSBAR      234
 #define IDM_VIEW_DARKMODE       235
+#define IDM_VIEW_FONT           236
 
 #define IDM_TAB_NEXT            240
 #define IDM_TAB_PREV            241
 
 #define IDM_HELP_ABOUT          250
 #define IDM_HELP_SHORTCUTS      251
+
+#define IDM_FILE_RECENT_FIRST   300
+#define IDM_FILE_RECENT_LAST    308
+#define IDM_FILE_RECENT_CLEAR   309

@@ -6,7 +6,7 @@ Built with pure C++20 and portable MSVC with zero runtime DLL dependencies.
 ## Key Highlights
 
 * **Instant Startup**: Launches in milliseconds without XAML/WinUI runtime overhead.
-* **Microscopic Footprint**: Single standalone **221 KB** `.exe` with zero external DLLs.
+* **Microscopic Footprint**: Single standalone **241 KB** `.exe` with zero external DLLs.
 * **Smart Tabs (Auto-Hiding)**:
   * When **1 file** is open: The tab bar completely hides itself, giving you the clean, full-screen canvas of classic Notepad.
   * When **2+ files** are opened: A sleek tab bar appears automatically with active tab accents, close buttons (`×`), and a new tab (`+`) button.
@@ -14,10 +14,17 @@ Built with pure C++20 and portable MSVC with zero runtime DLL dependencies.
 * **Native Windows 10/11 Dark Mode**:
   * Immersive dark title bar (`DWMWA_USE_IMMERSIVE_DARK_MODE`).
   * Seamless dark palette (`#1E1E1E`), dark tab bar, and custom-rendered dark status bar.
-  * Dynamically responds to Windows theme changes.
-* **Typography & Fonts**:
+  * Dark theme context & popup menus via `uxtheme.dll` and custom UAH menu bar rendering.
+  * Automatically syncs with Windows system theme and persists user preference.
+* **Font Selection & Typography**:
+  * Choose any system font via native font dialog (`View -> Font...`) with full size, weight, and italic selection.
+  * Persistent font settings saved in registry (`HKCU\Software\LightNotePad\Font`).
   * Default font cascade: **Cascadia Mono** $\rightarrow$ **Consolas** $\rightarrow$ **Courier New**.
   * Full `PerMonitorV2` High-DPI awareness (never blurs across monitors).
+* **Recent Files (MRU List)**:
+  * Quick access to recently opened files via `File -> Open Recent` with mnemonics (`&1` ... `&9`).
+  * Taskbar Jump List integration (`SHAddToRecentDocs`).
+  * Zero startup penalty: lazy disk validation only when an entry is clicked.
 * **Robust File & Encoding Engine**:
   * Auto-detects and preserves:
     * **UTF-8** (with and without BOM)
@@ -51,6 +58,7 @@ Built with pure C++20 and portable MSVC with zero runtime DLL dependencies.
 | `Ctrl + 0` | Reset Zoom (100%) |
 | `Ctrl + Mouse Wheel` | Smooth Zoom |
 | `F5` | Insert Date and Time |
+| `F1` | Keyboard Shortcuts Cheat Sheet |
 
 ---
 

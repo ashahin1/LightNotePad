@@ -40,6 +40,12 @@ private:
     void OpenFileDialog();
     bool SaveCurrentFile(bool saveAs = false);
     void UpdateWindowTitle();
+    void LoadRecentFiles();
+    void SaveRecentFiles();
+    void AddRecentFile(const std::wstring& path);
+    void ClearRecentFiles();
+    void UpdateRecentMenu();
+    void OpenRecentFile(int index);
 
     // Search Operations
     void OpenFindDialog(bool isReplace);
@@ -56,10 +62,16 @@ private:
     void ShowAboutDialog();
     void ShowShortcutsDialog();
 
+    // Font Configuration
+    void LoadFontSettings();
+    void SaveFontSettings();
+    void OpenFontDialog();
+
     HINSTANCE m_hInstance = nullptr;
     HWND m_hWnd = nullptr;
     HMODULE m_hRichEdit = nullptr;
     HMENU m_hMenu = nullptr;
+    HMENU m_hRecentMenu = nullptr;
     HACCEL m_hAccel = nullptr;
 
     UINT m_dpi = 96;
@@ -68,7 +80,11 @@ private:
     HFONT m_hEditorFont = nullptr;
     HFONT m_hMenuFont = nullptr;
     int m_editorFontSizePt = 11;
+    int m_editorFontWeight = FW_NORMAL;
+    bool m_editorFontItalic = false;
     std::wstring m_fontFamily = L"Cascadia Mono";
+
+    std::vector<std::wstring> m_recentFiles;
 
     // UI Sub-components
     TabBar m_tabBar;

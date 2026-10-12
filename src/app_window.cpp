@@ -224,6 +224,7 @@ void AppWindow::CreateAppMenu() {
     HMENU hViewMenu = CreatePopupMenu();
     AppendMenuW(hViewMenu, MF_STRING | MF_CHECKED, IDM_VIEW_WORDWRAP, L"Word Wrap\tAlt+Z");
     AppendMenuW(hViewMenu, MF_STRING, IDM_VIEW_FONT, L"Font...");
+    AppendMenuW(hViewMenu, MF_STRING, IDM_VIEW_FONTRESET, L"Restore Default Font");
     AppendMenuW(hViewMenu, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(hViewMenu, MF_STRING, IDM_VIEW_ZOOMIN, L"Zoom In\tCtrl++");
     AppendMenuW(hViewMenu, MF_STRING, IDM_VIEW_ZOOMOUT, L"Zoom Out\tCtrl+-");
@@ -763,6 +764,17 @@ void AppWindow::OpenFontDialog() {
     }
 }
 
+void AppWindow::ResetFont() {
+    m_fontFamily = L"Cascadia Mono";
+    m_editorFontSizePt = 11;
+    m_editorFontWeight = FW_NORMAL;
+    m_editorFontItalic = false;
+
+    SHDeleteKeyW(HKEY_CURRENT_USER, L"Software\\LightNotePad\\Font");
+
+    CreateEditorFont();
+}
+
 void AppWindow::LoadRecentFiles() {
     m_recentFiles.clear();
     HKEY hKey = nullptr;
@@ -1113,6 +1125,7 @@ LRESULT AppWindow::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
 
         case IDM_VIEW_WORDWRAP:   ToggleWordWrap(); break;
         case IDM_VIEW_FONT:       OpenFontDialog(); break;
+        case IDM_VIEW_FONTRESET:  ResetFont(); break;
         case IDM_VIEW_ZOOMIN:     AdjustZoom(10); break;
         case IDM_VIEW_ZOOMOUT:    AdjustZoom(-10); break;
         case IDM_VIEW_ZOOMRESET:  ResetZoom(); break;

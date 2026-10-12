@@ -33,6 +33,7 @@
 #define IDM_VIEW_STATUSBAR      234
 #define IDM_VIEW_DARKMODE       235
 #define IDM_VIEW_FONT           236
+#define IDM_VIEW_FONTRESET      237
 
 #define IDM_TAB_NEXT            240
 #define IDM_TAB_PREV            241

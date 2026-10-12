@@ -66,6 +66,7 @@ private:
     void LoadFontSettings();
     void SaveFontSettings();
     void OpenFontDialog();
+    void ResetFont();
 
     HINSTANCE m_hInstance = nullptr;
     HWND m_hWnd = nullptr;

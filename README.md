@@ -6,12 +6,15 @@
 
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://isocpp.org/)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-0078D6.svg)](https://www.microsoft.com/windows)
+[![Release](https://img.shields.io/github/v/release/ashahin1/LightNotePad?color=blue)](https://github.com/ashahin1/LightNotePad/releases)
 [![Binary Size](https://img.shields.io/badge/Binary%20Size-255%20KB-brightgreen.svg)]()
 [![RAM Usage](https://img.shields.io/badge/Private%20RAM-%3C%204%20MB-success.svg)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 An ultra-fast, minimalist, native Win32 text editor for Windows 10 & 11.
 Built with pure C++20 and portable MSVC with **zero runtime DLL dependencies**.
+
+[⬇️ **Download Latest Release (LightNotePad.exe)**](https://github.com/ashahin1/LightNotePad/releases/latest)
 
 ---
 

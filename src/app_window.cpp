@@ -193,6 +193,8 @@ void AppWindow::CreateAppMenu() {
     AppendMenuW(hFileMenu, MF_STRING, IDM_FILE_SAVE, L"Save\tCtrl+S");
     AppendMenuW(hFileMenu, MF_STRING, IDM_FILE_SAVEAS, L"Save As...\tCtrl+Shift+S");
     AppendMenuW(hFileMenu, MF_SEPARATOR, 0, nullptr);
+    AppendMenuW(hFileMenu, MF_STRING, IDM_FILE_PRINT, L"Print...\tCtrl+P");
+    AppendMenuW(hFileMenu, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(hFileMenu, MF_STRING, IDM_FILE_CLOSETAB, L"Close Tab\tCtrl+W");
     AppendMenuW(hFileMenu, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(hFileMenu, MF_STRING, IDM_FILE_EXIT, L"Exit\tAlt+F4");
@@ -252,6 +254,7 @@ void AppWindow::CreateAccelerators() {
         { FCONTROL | FVIRTKEY, 'O', IDM_FILE_OPEN },
         { FCONTROL | FVIRTKEY, 'S', IDM_FILE_SAVE },
         { FCONTROL | FSHIFT | FVIRTKEY, 'S', IDM_FILE_SAVEAS },
+        { FCONTROL | FVIRTKEY, 'P', IDM_FILE_PRINT },
         { FCONTROL | FVIRTKEY, 'W', IDM_FILE_CLOSETAB },
 
         { FCONTROL | FVIRTKEY, 'Z', IDM_EDIT_UNDO },
@@ -492,6 +495,139 @@ bool AppWindow::SaveCurrentFile(bool saveAs) {
         }
         return false;
     }
+}
+
+void AppWindow::PrintDocument() {
+    EditorTab* active = GetActiveTab();
+    if (!active) return;
+    HWND hEdit = active->GetEditHwnd();
+    if (!hEdit) return;
+
+    PRINTDLGW pd = { sizeof(PRINTDLGW) };
+    pd.hwndOwner = m_hWnd;
+    pd.Flags = PD_RETURNDC | PD_NOPAGENUMS | PD_NOSELECTION | PD_USEDEVMODECOPIESANDCOLLATE;
+    pd.nCopies = 1;
+
+    if (!PrintDlgW(&pd)) {
+        return; // User clicked Cancel or closed the print dialog
+    }
+
+    HDC hPrnDC = pd.hDC;
+    if (!hPrnDC) {
+        if (pd.hDevMode) GlobalFree(pd.hDevMode);
+        if (pd.hDevNames) GlobalFree(pd.hDevNames);
+        return;
+    }
+
+    int dpiX = GetDeviceCaps(hPrnDC, LOGPIXELSX);
+    int dpiY = GetDeviceCaps(hPrnDC, LOGPIXELSY);
+    int physWidth = GetDeviceCaps(hPrnDC, PHYSICALWIDTH);
+    int physHeight = GetDeviceCaps(hPrnDC, PHYSICALHEIGHT);
+
+    if (physWidth == 0) physWidth = GetDeviceCaps(hPrnDC, HORZRES);
+    if (physHeight == 0) physHeight = GetDeviceCaps(hPrnDC, VERTRES);
+
+    // Convert page dimensions to twips (1 inch = 1440 twips)
+    int pageTwipsW = MulDiv(physWidth, 1440, dpiX);
+    int pageTwipsH = MulDiv(physHeight, 1440, dpiY);
+
+    // Standard 0.75-inch side margins and 1-inch top/bottom margins (for header and footer)
+    int marginSideTwips   = 1080; // 0.75 in
+    int marginTopTwips    = 1440; // 1.00 in
+    int marginBottomTwips = 1440; // 1.00 in
+
+    RECT rcPage = { 0, 0, pageTwipsW, pageTwipsH };
+    RECT rcPrintable = {
+        marginSideTwips,
+        marginTopTwips,
+        pageTwipsW - marginSideTwips,
+        pageTwipsH - marginBottomTwips
+    };
+
+    // Calculate pixel coordinates for Header & Footer drawing
+    int printPixelLeft = MulDiv(marginSideTwips, dpiX, 1440);
+    int printPixelRight = MulDiv(pageTwipsW - marginSideTwips, dpiX, 1440);
+    int printPixelTopHeader = MulDiv(marginTopTwips / 2, dpiY, 1440);
+    int printPixelBottomFooter = MulDiv(pageTwipsH - (marginBottomTwips * 3 / 4), dpiY, 1440);
+
+    DOCINFOW di = { sizeof(DOCINFOW) };
+    std::wstring docTitle = active->GetFileName();
+    di.lpszDocName = docTitle.c_str();
+
+    if (StartDocW(hPrnDC, &di) > 0) {
+        // Create clean 9pt Segoe UI font for Header and Footer
+        int fontH = -MulDiv(9, dpiY, 72);
+        HFONT hHdrFont = CreateFontW(
+            fontH, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+            DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+            DEFAULT_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Segoe UI"
+        );
+
+        // Ensure printed text is always crisp black on white paper, regardless of Dark Mode
+        CHARFORMAT2W cfPrint = { sizeof(CHARFORMAT2W) };
+        cfPrint.dwMask = CFM_COLOR;
+        cfPrint.dwEffects = 0;
+        cfPrint.crTextColor = RGB(0, 0, 0);
+
+        CHARFORMAT2W cfRestore = { sizeof(CHARFORMAT2W) };
+        cfRestore.dwMask = CFM_COLOR;
+        cfRestore.dwEffects = 0;
+        cfRestore.crTextColor = m_darkMode ? RGB(240, 240, 240) : RGB(20, 20, 20);
+
+        SendMessage(hEdit, EM_SETCHARFORMAT, SCF_ALL, reinterpret_cast<LPARAM>(&cfPrint));
+
+        GETTEXTLENGTHEX gtl = { GTL_NUMCHARS | GTL_PRECISE, 1200 };
+        LONG totalChars = static_cast<LONG>(SendMessage(hEdit, EM_GETTEXTLENGTHEX, reinterpret_cast<WPARAM>(&gtl), 0));
+        LONG cpMin = 0;
+        int pageNum = 1;
+
+        do {
+            if (StartPage(hPrnDC) <= 0) break;
+
+            // Draw Header and Footer
+            HFONT hOldFont = hHdrFont ? static_cast<HFONT>(SelectObject(hPrnDC, hHdrFont)) : nullptr;
+            SetBkMode(hPrnDC, TRANSPARENT);
+            SetTextColor(hPrnDC, RGB(80, 80, 80));
+
+            RECT rcHdr = { printPixelLeft, printPixelTopHeader, printPixelRight, printPixelTopHeader + MulDiv(16, dpiY, 72) };
+            DrawTextW(hPrnDC, docTitle.c_str(), -1, &rcHdr, DT_LEFT | DT_SINGLELINE | DT_NOPREFIX);
+
+            std::wstring footerText = L"Page " + std::to_wstring(pageNum);
+            RECT rcFtr = { printPixelLeft, printPixelBottomFooter, printPixelRight, printPixelBottomFooter + MulDiv(16, dpiY, 72) };
+            DrawTextW(hPrnDC, footerText.c_str(), -1, &rcFtr, DT_CENTER | DT_SINGLELINE);
+
+            if (hOldFont) SelectObject(hPrnDC, hOldFont);
+
+            FORMATRANGE fr = {};
+            fr.hdc = hPrnDC;
+            fr.hdcTarget = hPrnDC;
+            fr.rc = rcPrintable;
+            fr.rcPage = rcPage;
+            fr.chrg.cpMin = cpMin;
+            fr.chrg.cpMax = -1;
+
+            LONG cpNext = static_cast<LONG>(SendMessage(hEdit, EM_FORMATRANGE, TRUE, reinterpret_cast<LPARAM>(&fr)));
+
+            EndPage(hPrnDC);
+
+            if (cpNext <= cpMin || cpNext >= totalChars) {
+                break;
+            }
+            cpMin = cpNext;
+            pageNum++;
+        } while (cpMin < totalChars);
+
+        // Free formatting cache and restore editor colors
+        SendMessage(hEdit, EM_FORMATRANGE, FALSE, 0);
+        SendMessage(hEdit, EM_SETCHARFORMAT, SCF_ALL, reinterpret_cast<LPARAM>(&cfRestore));
+
+        if (hHdrFont) DeleteObject(hHdrFont);
+        EndDoc(hPrnDC);
+    }
+
+    DeleteDC(hPrnDC);
+    if (pd.hDevMode) GlobalFree(pd.hDevMode);
+    if (pd.hDevNames) GlobalFree(pd.hDevNames);
 }
 
 void AppWindow::ToggleWordWrap() {
@@ -1102,6 +1238,7 @@ LRESULT AppWindow::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
         case IDM_FILE_RECENT_CLEAR: ClearRecentFiles(); break;
         case IDM_FILE_SAVE:       SaveCurrentFile(false); break;
         case IDM_FILE_SAVEAS:     SaveCurrentFile(true); break;
+        case IDM_FILE_PRINT:      PrintDocument(); break;
         case IDM_FILE_CLOSETAB: {
             EditorTab* active = GetActiveTab();
             if (active) CloseTab(active->GetTabId());

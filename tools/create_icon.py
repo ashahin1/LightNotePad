@@ -251,20 +251,10 @@ def create_notepad_icon(output_ico_path, output_png_path=None):
     if output_png_path:
         img.save(output_png_path, "PNG")
 
-    # Generate complete multi-size ICO
+    # Generate complete multi-size ICO from high-resolution master
     icon_sizes = [(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)]
-    resized_images = []
-    for s in icon_sizes:
-        res = img.resize(s, Image.Resampling.LANCZOS)
-        resized_images.append(res)
-
-    resized_images[0].save(
-        output_ico_path,
-        format="ICO",
-        sizes=icon_sizes,
-        append_images=resized_images[1:]
-    )
-    print(f"Polished Notepad Icon successfully generated at: {output_ico_path}")
+    img.save(output_ico_path, format="ICO", sizes=icon_sizes)
+    print(f"Polished multi-size Notepad Icon successfully generated at: {output_ico_path}")
 
 if __name__ == "__main__":
     tools_dir = os.path.dirname(os.path.abspath(__file__))

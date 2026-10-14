@@ -39,6 +39,7 @@ private:
     // File Operations
     void OpenFileDialog();
     bool SaveCurrentFile(bool saveAs = false);
+    void PrintDocument();
     void UpdateWindowTitle();
     void LoadRecentFiles();
     void SaveRecentFiles();

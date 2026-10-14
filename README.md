@@ -6,7 +6,7 @@
 
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://isocpp.org/)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-0078D6.svg)](https://www.microsoft.com/windows)
-[![Binary Size](https://img.shields.io/badge/Binary%20Size-225%20KB-brightgreen.svg)]()
+[![Binary Size](https://img.shields.io/badge/Binary%20Size-255%20KB-brightgreen.svg)]()
 [![RAM Usage](https://img.shields.io/badge/Private%20RAM-%3C%204%20MB-success.svg)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -21,7 +21,7 @@ Measured on Windows 11 (64-bit):
 
 | Metric | LightNotePad | Windows 11 Notepad (WinUI) | Difference |
 | :--- | :--- | :--- | :--- |
-| **Standalone Binary Size** | **225 KB** | ~50+ MB (Packaged App) | **>200× smaller** |
+| **Standalone Binary Size** | **255 KB** | ~50+ MB (Packaged App) | **>200× smaller** |
 | **Cold Startup Latency** | **~200 ms** | ~5,000 ms | **>20× faster** |
 | **Private Working Set RAM** | **3.5 MB** | 17.5 MB | **5× lower RAM** |
 | **External Runtime DLLs** | **0** (Native Win32 only) | Multiple WinRT/XAML packages | Zero bloat |
@@ -31,7 +31,7 @@ Measured on Windows 11 (64-bit):
 ## 🚀 Key Highlights
 
 * **Instant Cold Launch**: Launches immediately without XAML, WinUI, or Electron runtime baggage.
-* **Microscopic Footprint**: Single standalone **225 KB** `.exe` with zero installer needed.
+* **Microscopic Footprint**: Single standalone **255 KB** `.exe` with zero installer needed.
 * **Smart Tabs (Auto-Hiding)**:
   * When **1 file** is open: The tab bar completely hides itself (0 px height), providing the clean, full-screen canvas of classic Notepad.
   * When **2+ files** are opened: A sleek tab bar appears automatically with active tab accents, close buttons (`×`), and a new tab (`+`) button.
@@ -61,6 +61,10 @@ Measured on Windows 11 (64-bit):
 * **Smart Single-Instance & Independent Multi-Window**:
   * Opening files from Explorer forwards them as new tabs into the active window (`WM_COPYDATA`).
   * Pressing `Ctrl+Shift+N` (or passing `--new-window`) spawns a completely independent window instance.
+* **Native Document Printing**:
+  * Print documents directly via `File -> Print...` (`Ctrl+P`) using the native Windows Print dialog (`PrintDlgW`).
+  * Full pagination, margins, word wrapping, and automatic headers (file name) & footers (page numbers).
+  * Automatically renders crisp black text on white paper even when editing in Dark Mode.
 * **Zero-Admin Shell Registration**:
   * Run `LightNotePad.exe /register` to register as a text viewer in your user profile without admin rights.
 
@@ -75,6 +79,7 @@ Measured on Windows 11 (64-bit):
 | `Ctrl + O` | Open File |
 | `Ctrl + S` | Save |
 | `Ctrl + Shift + S` | Save As |
+| `Ctrl + P` | Print Document |
 | `Ctrl + W` | Close Tab |
 | `Ctrl + Tab` / `Ctrl + Shift + Tab` | Next / Previous Tab |
 | `Ctrl + F` | Find |

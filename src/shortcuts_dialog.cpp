@@ -27,6 +27,7 @@ const ShortcutCategory g_categories[] = {
             { L"Ctrl + O", L"Open File" },
             { L"Ctrl + S", L"Save" },
             { L"Ctrl + Shift + S", L"Save As" },
+            { L"Ctrl + P", L"Print Document" },
             { L"Ctrl + W", L"Close Tab" },
         }
     },

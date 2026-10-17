@@ -4,6 +4,7 @@ dist/
 *.exe
 *.obj
 *.res
+*.pch
 *.pdb
 *.ilk
 *.lib
@@ -14,11 +15,13 @@ dist/
 # MSVC portable toolchain (if downloaded locally)
 tools/msvc/
 
-# Python cache
+# Python cache & virtual environments
 __pycache__/
 *.pyc
+.venv/
+venv/
 
-# Diagnostic & test logs
+# Diagnostic logs & scratch files
 scratch/
 *.log
 

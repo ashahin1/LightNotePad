@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       tag_name:
-        description: 'Release Tag (e.g. v1.0.0)'
+        description: 'Release Tag (e.g. v1.1.0)'
         required: true
-        default: 'v1.0.0'
+        default: 'v1.1.0'
 
 jobs:
   release:
@@ -24,17 +24,24 @@ jobs:
 
       - name: Setup MSVC Toolchain
         uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
 
       - name: Compile LightNotePad
         shell: powershell
         run: |
-          powershell -ExecutionPolicy Bypass -File .\build.ps1
+          powershell -ExecutionPolicy Bypass -File .\build.ps1 -Rebuild
+
+      - name: Run Test Suite Verification
+        shell: powershell
+        run: |
+          powershell -ExecutionPolicy Bypass -File .\tools\test_all.ps1
 
       - name: Package Release Assets & Compute Checksums
         shell: powershell
         run: |
           $tag = if ("${{ github.ref_type }}" -eq "tag") { "${{ github.ref_name }}" } else { "${{ github.event.inputs.tag_name }}" }
-          if (-not $tag) { $tag = "v1.0.0" }
+          if (-not $tag) { $tag = "v1.1.0" }
 
           # Prepare zip payload
           New-Item -ItemType Directory -Path "dist" -Force | Out-Null
@@ -49,12 +56,11 @@ jobs:
           $hashExe = (Get-FileHash "bin\LightNotePad.exe" -Algorithm SHA256).Hash
           $hashZip = (Get-FileHash $zipName -Algorithm SHA256).Hash
 
-          $checksumContent = @"
-          LightNotePad $tag SHA-256 Checksums:
-          $hashExe  LightNotePad.exe
-          $hashZip  $zipName
-          "@
-          Set-Content -Path "checksums.txt" -Value $checksumContent
+          @(
+            "LightNotePad $tag SHA-256 Checksums:",
+            "$hashExe  LightNotePad.exe",
+            "$hashZip  $zipName"
+          ) | Set-Content -Path "checksums.txt"
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2

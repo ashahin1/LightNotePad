@@ -107,18 +107,25 @@ Measured on Windows 11 (64-bit):
 
 ---
 
-## 📂 Supported Formats
+## 📂 Supported Formats & Syntax Colorization
 
-LightNotePad includes a single unified source of truth for text file extensions, powering the Open/Save dialog filters, multi-file selection, shell context menus, and Windows Default Apps registration:
+LightNotePad includes a single unified source of truth for text file extensions, powering the Open/Save dialog filters, multi-file selection, shell context menus, Windows Default Apps registration, and real-time syntax colorization:
 
-| Category | File Extensions | Wildcard Pattern |
-| :--- | :--- | :--- |
-| **Plain Text & Logs** | `.txt`, `.text`, `.log`, `.out`, `.err` | `*.txt;*.text;*.log;*.out;*.err` |
-| **Markdown Documents** | `.md`, `.markdown` | `*.md;*.markdown` |
-| **Configuration & Settings** | `.ini`, `.cfg`, `.conf`, `.config`, `.inf`, `.properties`, `.env` | `*.ini;*.cfg;*.conf;*.config;*.inf;*.properties;*.env` |
-| **Structured Data** | `.json`, `.xml`, `.yaml`, `.yml`, `.csv`, `.tsv`, `.toml` | `*.json;*.xml;*.yaml;*.yml;*.csv;*.tsv;*.toml` |
-| **Source Code & Scripts** | `.c`, `.cpp`, `.h`, `.hpp`, `.cs`, `.js`, `.ts`, `.py`, `.html`, `.htm`, `.css`, `.sql`, `.sh`, `.bat`, `.cmd`, `.ps1` | `*.c;*.cpp;*.h;*.hpp;*.cs;*.js;*.ts;*.py;*.html;*.htm;*.css;*.sql;*.sh;*.bat;*.cmd;*.ps1` |
-| **All Files** | Any extension (`*.*`) via dialog filter, CLI argument, or Drag & Drop | `*.*` |
+| Category | File Extensions | Wildcard Pattern | Syntax Colorization Engine |
+| :--- | :--- | :--- | :--- |
+| **Plain Text & Logs** | `.txt`, `.text`, `.log`, `.out`, `.err` | `*.txt;*.text;*.log;*.out;*.err` | **None** (Strict `TM_PLAINTEXT` mode, 0% overhead) |
+| **C / C++ & C#** | `.c`, `.cpp`, `.h`, `.hpp`, `.cs` | `*.c;*.cpp;*.h;*.hpp;*.cs` | **C-Family** (Keywords, types, strings, comments, `#preprocessor`) |
+| **JavaScript & TypeScript** | `.js`, `.ts`, `.jsx`, `.tsx` | `*.js;*.ts` | **JS/TS** (Keywords, types, strings, comments, template literals) |
+| **Python** | `.py`, `.pyw` | `*.py` | **Python** (Keywords, types, strings, `#comments`, `@decorators`) |
+| **JSON** | `.json` | `*.json` | **JSON** (Keys, values, strings, numbers, booleans, null) |
+| **Markup & Web** | `.html`, `.htm`, `.xml`, `.svg`, `.css` | `*.html;*.htm;*.xml;*.css` | **HTML/XML** (Tags, attributes, comments, strings) |
+| **Configuration & Data** | `.ini`, `.cfg`, `.conf`, `.config`, `.inf`, `.properties`, `.env`, `.yaml`, `.yml`, `.toml` | `*.ini;*.cfg;*.conf;*.config;*.inf;*.properties;*.env;*.yaml;*.yml;*.toml` | **Config/Data** (`[Sections]`, key-value pairs, comments) |
+| **Scripts & SQL** | `.ps1`, `.bat`, `.cmd`, `.sh`, `.sql` | `*.ps1;*.bat;*.cmd;*.sh;*.sql` | **Scripts** (Case-insensitive keywords, `$vars`, comments) |
+| **Markdown Documents** | `.md`, `.markdown` | `*.md;*.markdown` | **Markdown** (`# Headings`, inline `` `code` ``, blockquotes) |
+| **Tabular Data** | `.csv`, `.tsv` | `*.csv;*.tsv` | **None** (Strict `TM_PLAINTEXT` mode) |
+| **All Files** | Any extension (`*.*`) | `*.*` | Auto-detected by extension (fallback to plain text) |
+
+> **Note on Syntax Isolation**: Plain text files (`.txt`, `.log`, etc.) run in native `TM_PLAINTEXT` mode with zero tokenizer overhead. Code files receive real-time highlighting via `ITextDocument` without polluting the `Ctrl+Z` undo stack, and are always saved as 100% pure plain text with zero RTF or formatting tags written to disk. Highlighting can be toggled at any time via `View -> Syntax Highlighting`. Files larger than 1 MB automatically fall back to pure plain text to guarantee instantaneous editing speeds.
 
 ---
 

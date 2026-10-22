@@ -31,85 +31,41 @@ Measured on Windows 11 (64-bit):
 
 ---
 
-## 🚀 Key Highlights
+## ✨ Core Features
 
-* **Instant Cold Launch**: Launches immediately without XAML, WinUI, or Electron runtime baggage.
-* **Microscopic Footprint**: Single standalone **285 KB** `.exe` with zero installer needed.
-* **Real-Time Code Syntax Highlighting**:
-  * Live, flicker-free syntax coloring for C/C++, C#, JavaScript/TypeScript, Python, JSON, HTML/XML/CSS, Configuration/TOML/YAML, Shell/Batch/SQL, and Markdown.
-  * Faithfully implements the official **Microsoft Visual Studio Dark+ and Light+** palettes.
-  * Powered by RichEdit's Text Object Model (`ITextDocument` via COM) with frozen viewport updates and suspended undo tracking—**never pollutes the undo history (`Ctrl+Z`)** and never moves the caret.
-  * Plain text files (`.txt`, `.log`, `.err`) remain in pure `TM_PLAINTEXT` mode with zero overhead.
-  * Saved files remain **100% clean plain text** on disk with zero embedded formatting or RTF bloat.
-  * Toggleable at any time via `View -> Syntax Highlighting` (persisted in registry).
-  * Auto-disables on huge files (> 1 MB) to preserve instantaneous responsiveness.
-* **Smart Tabs (Auto-Hiding)**:
-  * When **1 file** is open: The tab bar completely hides itself (0 px height), providing the clean, full-screen canvas of classic Notepad.
-  * When **2+ files** are opened: A sleek tab bar appears automatically with active tab accents, close buttons (`×`), and a new tab (`+`) button.
-  * Middle-click any tab to close it.
-* **Native Windows 10/11 Dark Mode**:
-  * Immersive dark title bar (`DWMWA_USE_IMMERSIVE_DARK_MODE`).
-  * Dark menu bar (via custom Win32 UAH menu rendering) and dark popup menus (via `uxtheme.dll`).
-  * Seamless dark palette (`#1E1E1E`), dark tab bar, and custom-rendered dark status bar.
-  * Automatically follows the Windows system theme and remembers user preferences.
-* **Font Selection & Typography**:
-  * Native font picker (`View -> Font...`) supporting all installed system fonts with custom size, weight, and italic options.
-  * Single-click **"Restore Default Font"** to instantly revert to the clean default.
-  * Persistent font preferences stored in `HKCU\Software\LightNotePad\Font`.
-  * Default font cascade: **Cascadia Mono** $\rightarrow$ **Consolas** $\rightarrow$ **Courier New**.
-  * Full `PerMonitorV2` High-DPI awareness (never blurs across monitors with different scaling factors).
-* **Recent Files (MRU List)**:
-  * Quick access to recently opened files via `File -> Open Recent` with keyboard mnemonics (`&1` ... `&9`).
-  * Windows Taskbar Jump List sync (`SHAddToRecentDocs`).
-  * Zero startup penalty: lazy disk validation only when an entry is clicked.
-* **Robust File & Encoding Engine**:
-  * Auto-detects and preserves:
-    * **UTF-8** (with and without BOM)
-    * **UTF-16 LE** & **UTF-16 BE**
-    * **ANSI** (Windows system codepage)
-  * Auto-detects and preserves **CRLF** vs. **LF** line endings.
-  * Safe atomic file saving with temporary file swaps to prevent data loss or file corruption.
-* **Smart Single-Instance & Independent Multi-Window**:
-  * Opening files from Explorer forwards them as new tabs into the active window (`WM_COPYDATA`).
-  * Pressing `Ctrl+Shift+N` (or passing `--new-window`) spawns a completely independent window instance.
-* **Native Document Printing**:
-  * Print documents directly via `File -> Print...` (`Ctrl+P`) using the native Windows Print dialog (`PrintDlgW`).
-  * Full pagination, margins, word wrapping, and automatic headers (file name) & footers (page numbers).
-  * Automatically renders crisp black text on white paper even when editing in Dark Mode.
-* **Zero-Admin Shell Registration & Default Apps Integration**:
-  * Run `LightNotePad.exe /register` to register as a text viewer across all supported formats in your user profile without admin rights.
-  * Fully integrates with Windows Settings > Apps > Default apps via `Capabilities` and `RegisteredApplications`.
-  * Fully supports `/silent` flag for script-driven and automated deployments.
+### 🎨 Real-Time Syntax Highlighting
+* **Multi-Language Support**: Instant colorization for C/C++, C#, JavaScript/TypeScript, Python, JSON, HTML/XML/CSS, Configuration/TOML/YAML, Shell/Batch/SQL, and Markdown.
+* **Visual Studio Palettes**: Faithfully renders official Microsoft Visual Studio Dark+ and Light+ theme palettes.
+* **ITextDocument COM Architecture**: Operates via RichEdit's Text Object Model with frozen viewport updates and suspended undo tracking—**never pollutes the undo history (`Ctrl+Z`)** and never moves the caret.
+* **Zero-RTF Guarantee**: Files saved to disk remain **100% clean plain text** with zero embedded formatting or RTF markup.
+* **Pure Plain Text Mode**: Files like `.txt` and `.log` operate in strict `TM_PLAINTEXT` mode with zero tokenizer overhead.
+* **Smart Safety Guard**: Files larger than 1 MB automatically fall back to pure plain text to guarantee instantaneous editing speeds.
+* **On-Demand Toggle**: Instantly enable or disable syntax colorization via `View -> Syntax Highlighting` (persisted in registry).
 
----
+### 📑 Smart Tabs & Minimalist Canvas
+* **Dynamic Auto-Hiding Tab Bar**: When only 1 file is open, the tab bar collapses completely (0 px height) for the classic, distraction-free Notepad canvas. When 2+ files are opened, a sleek tab bar automatically appears.
+* **Tab Management**: Includes active tab accents, close buttons (`×`), middle-click tab closing, and a quick new tab (`+`) button.
+* **Smart Single-Instance & Multi-Window**: Opening files from Windows Explorer forwards them into tabs in the active window (`WM_COPYDATA`). Press `Ctrl+Shift+N` (or pass `--new-window`) to spawn a completely independent window instance.
 
-## ⌨️ Keyboard Shortcuts
+### 🪟 Windows 10/11 Native Integration
+* **Immersive Dark & Light Themes**: Seamless title bar theming (`DWMWA_USE_IMMERSIVE_DARK_MODE`), custom dark menu bar (Win32 UAH rendering), dark popup menus (`uxtheme.dll`), and custom dark status bar. Follows system theme changes automatically.
+* **Recent Files (MRU) & Jump Lists**: Quick access to recent files via `File -> Open Recent` with keyboard mnemonics (`&1`–`&9`) and synchronized Windows Taskbar Jump Lists (`SHAddToRecentDocs`). Lazy disk validation ensures zero startup overhead.
+* **PerMonitorV2 High-DPI**: Crisp rendering across multiple displays with varying scaling factors.
 
-| Shortcut | Action |
-| :--- | :--- |
-| `Ctrl + N` / `Ctrl + T` | New Tab |
-| `Ctrl + Shift + N` | New Window (independent instance) |
-| `Ctrl + O` | Open File |
-| `Ctrl + S` | Save |
-| `Ctrl + Shift + S` | Save As |
-| `Ctrl + P` | Print Document |
-| `Ctrl + W` | Close Tab |
-| `Ctrl + Tab` / `Ctrl + Shift + Tab` | Next / Previous Tab |
-| `Ctrl + F` | Find |
-| `F3` / `Shift + F3` | Find Next / Find Previous |
-| `Ctrl + H` | Replace |
-| `Alt + Z` | Toggle Word Wrap |
-| `Ctrl + +` / `Ctrl + -` | Zoom In / Zoom Out |
-| `Ctrl + 0` | Reset Zoom (100%) |
-| `Ctrl + Mouse Wheel` | Smooth Zoom |
-| `F5` | Insert Date and Time |
-| `F1` | Keyboard Shortcuts Cheat Sheet |
+### 🛡️ Robust File & Encoding Engine
+* **Universal Encoding Detection**: Automatically detects and preserves **UTF-8** (with and without BOM), **UTF-16 LE**, **UTF-16 BE**, and **ANSI** (Windows system codepage).
+* **Line Ending Preservation**: Detects and retains **CRLF** vs. **LF** line endings.
+* **Atomic Safe Saving**: Writes to a temporary swap file before replacing the target, protecting your data against write interruptions or crashes.
+
+### 🔤 Typography & Native Printing
+* **System Font Picker**: Customize font family, size, weight, and italic options (`View -> Font...`) with single-click **"Restore Default Font"** (`Cascadia Mono` $\rightarrow$ `Consolas` $\rightarrow$ `Courier New`).
+* **Native Document Printing**: Print directly via `File -> Print...` (`Ctrl+P`) using the native Windows Print dialog (`PrintDlgW`) with full pagination, margins, word wrapping, headers (file name), and footers (page numbers). Renders crisp black text on white paper regardless of active theme.
 
 ---
 
 ## 📂 Supported Formats & Syntax Colorization
 
-LightNotePad includes a single unified source of truth for text file extensions, powering the Open/Save dialog filters, multi-file selection, shell context menus, Windows Default Apps registration, and real-time syntax colorization:
+LightNotePad uses a single unified source of truth for text file extensions, powering Open/Save dialog filters, multi-file selection, shell context menus, Windows Default Apps registration, and real-time syntax colorization:
 
 | Category | File Extensions | Wildcard Pattern | Syntax Colorization Engine |
 | :--- | :--- | :--- | :--- |
@@ -125,14 +81,14 @@ LightNotePad includes a single unified source of truth for text file extensions,
 | **Tabular Data** | `.csv`, `.tsv` | `*.csv;*.tsv` | **None** (Strict `TM_PLAINTEXT` mode) |
 | **All Files** | Any extension (`*.*`) | `*.*` | Auto-detected by extension (fallback to plain text) |
 
-> **Note on Syntax Isolation**: Plain text files (`.txt`, `.log`, etc.) run in native `TM_PLAINTEXT` mode with zero tokenizer overhead. Code files receive real-time highlighting via `ITextDocument` without polluting the `Ctrl+Z` undo stack, and are always saved as 100% pure plain text with zero RTF or formatting tags written to disk. Highlighting can be toggled at any time via `View -> Syntax Highlighting`. Files larger than 1 MB automatically fall back to pure plain text to guarantee instantaneous editing speeds.
-
 ---
 
-## 💻 Command Line Usage
+## 💻 Windows Shell Integration & Command Line Usage
+
+LightNotePad integrates seamlessly with the Windows shell without requiring administrative privileges:
 
 ```cmd
-:: Open a blank document
+:: Launch LightNotePad
 LightNotePad.exe
 
 :: Open a specific file
@@ -144,12 +100,12 @@ LightNotePad.exe file1.txt file2.log config.ini data.json
 :: Open an independent window instance
 LightNotePad.exe --new-window
 
-:: Register shell associations in user profile (no admin rights required)
+:: Register shell associations in user profile (zero admin rights required)
 :: Sets up ProgID (LightNotePad.Document), OpenWithProgids, Applications\LightNotePad.exe,
 :: and Windows Default Apps Capabilities (Software\LightNotePad\Capabilities & RegisteredApplications).
 LightNotePad.exe /register
 
-:: Register silently (no graphical message box)
+:: Register silently (ideal for scripts and unattended setups)
 LightNotePad.exe /register /silent
 
 :: Remove all registered shell associations, ProgID, and Capabilities cleanly
@@ -160,6 +116,31 @@ LightNotePad.exe /unregister /silent
 ```
 
 > **Note on Windows Default Apps**: Per Windows 10/11 security architecture, running `/register` publishes the app's capabilities to Windows. To set LightNotePad as your default handler for specific extensions, select it in **Windows Settings > Apps > Default apps**, or right-click any supported file and choose **"Open with" > "Choose another app" > "Always"**.
+
+---
+
+## ⌨️ Keyboard Shortcuts
+
+| Shortcut | Action |
+| :--- | :--- |
+| `Ctrl + N` / `Ctrl + T` | New Tab |
+| `Ctrl + Shift + N` | New Window (independent instance) |
+| `Ctrl + O` | Open File (supports multi-file selection) |
+| `Ctrl + S` | Save |
+| `Ctrl + Shift + S` | Save As |
+| `Ctrl + P` | Print Document |
+| `Ctrl + W` | Close Tab |
+| `Ctrl + Tab` / `Ctrl + Shift + Tab` | Next / Previous Tab |
+| `Ctrl + F` | Find |
+| `F3` / `Shift + F3` | Find Next / Find Previous |
+| `Ctrl + H` | Replace |
+| `Ctrl + Z` / `Ctrl + Y` | Undo / Redo |
+| `Alt + Z` | Toggle Word Wrap |
+| `Ctrl + +` / `Ctrl + -` | Zoom In / Zoom Out |
+| `Ctrl + 0` | Reset Zoom (100%) |
+| `Ctrl + Mouse Wheel` | Smooth Zoom |
+| `F5` | Insert Date and Time |
+| `F1` | Keyboard Shortcuts Cheat Sheet |
 
 ---
 

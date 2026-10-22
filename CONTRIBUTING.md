@@ -8,7 +8,7 @@ Before submitting contributions, please keep in mind the fundamental design goal
 
 1. **Extreme Performance**: Sub-200ms cold startup, instantaneous file opening and editing, and minimal memory footprint.
 2. **Zero External Runtime Dependencies**: Standalone single `.exe` utilizing only native Windows 10/11 Win32 APIs, Common Controls, and native printing/dialog APIs. No external runtime DLLs.
-3. **Strict Size Budget**: Total executable size must strictly remain under **300 KB** (currently ~255 KB).
+3. **Strict Size Budget**: Total executable size must strictly remain under **300 KB** (currently ~272 KB).
 4. **Clean Code & Toolchain**: Pure C++20 (`/std:c++20`), static runtime library (`/MT`), zero-warning compilation (`/W4`).
 
 ---
@@ -49,6 +49,7 @@ The test suite validates:
 - Executable generation and launch.
 - Standalone execution without extra arguments.
 - Multi-instance spawning via `--new-window`.
+- Shell association registration and clean removal (`tools/test_registration.ps1`).
 - Loading and handling files across encodings (UTF-8 with BOM, UTF-8 without BOM, UTF-16 LE, ANSI CRLF and LF).
 - Process cleanup and graceful termination.
 

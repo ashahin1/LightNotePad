@@ -88,5 +88,13 @@ finally {
     }
 }
 
+# 4. Test Shell Associations (/register and /unregister)
+Write-Host "`n4. Testing Shell Associations..."
+& powershell -ExecutionPolicy Bypass -File "$PSScriptRoot\test_registration.ps1"
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Shell association tests failed!"
+    exit 1
+}
+
 Write-Host "`nAll LightNotePad verification tests passed successfully!" -ForegroundColor Green
 exit 0

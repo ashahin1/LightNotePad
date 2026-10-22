@@ -15,6 +15,9 @@ public:
     HACCEL GetAccel() const { return m_hAccel; }
     HWND GetFindDialog() const { return m_hFindReplaceDialog; }
 
+    static void RegisterShellAssociations();
+    static void UnregisterShellAssociations();
+
 private:
     static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
     LRESULT HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam);

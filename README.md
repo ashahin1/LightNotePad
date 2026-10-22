@@ -7,7 +7,7 @@
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://isocpp.org/)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-0078D6.svg)](https://www.microsoft.com/windows)
 [![Release](https://img.shields.io/github/v/release/ashahin1/LightNotePad?color=blue)](https://github.com/ashahin1/LightNotePad/releases)
-[![Binary Size](https://img.shields.io/badge/Binary%20Size-255%20KB-brightgreen.svg)]()
+[![Binary Size](https://img.shields.io/badge/Binary%20Size-272%20KB-brightgreen.svg)]()
 [![RAM Usage](https://img.shields.io/badge/Private%20RAM-%3C%204%20MB-success.svg)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -24,8 +24,8 @@ Measured on Windows 11 (64-bit):
 
 | Metric | LightNotePad | Windows 11 Notepad (WinUI) | Difference |
 | :--- | :--- | :--- | :--- |
-| **Standalone Binary Size** | **255 KB** | ~50+ MB (Packaged App) | **>200× smaller** |
-| **Cold Startup Latency** | **~200 ms** | ~5,000 ms | **>20× faster** |
+| **Standalone Binary Size** | **272 KB** | ~50+ MB (Packaged App) | **>180× smaller** |
+| **Cold Startup Latency** | **~180 ms** | ~5,000 ms | **>25× faster** |
 | **Private Working Set RAM** | **3.5 MB** | 17.5 MB | **5× lower RAM** |
 | **External Runtime DLLs** | **0** (Native Win32 only) | Multiple WinRT/XAML packages | Zero bloat |
 
@@ -34,7 +34,7 @@ Measured on Windows 11 (64-bit):
 ## 🚀 Key Highlights
 
 * **Instant Cold Launch**: Launches immediately without XAML, WinUI, or Electron runtime baggage.
-* **Microscopic Footprint**: Single standalone **255 KB** `.exe` with zero installer needed.
+* **Microscopic Footprint**: Single standalone **272 KB** `.exe` with zero installer needed.
 * **Smart Tabs (Auto-Hiding)**:
   * When **1 file** is open: The tab bar completely hides itself (0 px height), providing the clean, full-screen canvas of classic Notepad.
   * When **2+ files** are opened: A sleek tab bar appears automatically with active tab accents, close buttons (`×`), and a new tab (`+`) button.
@@ -68,8 +68,10 @@ Measured on Windows 11 (64-bit):
   * Print documents directly via `File -> Print...` (`Ctrl+P`) using the native Windows Print dialog (`PrintDlgW`).
   * Full pagination, margins, word wrapping, and automatic headers (file name) & footers (page numbers).
   * Automatically renders crisp black text on white paper even when editing in Dark Mode.
-* **Zero-Admin Shell Registration**:
-  * Run `LightNotePad.exe /register` to register as a text viewer in your user profile without admin rights.
+* **Zero-Admin Shell Registration & Default Apps Integration**:
+  * Run `LightNotePad.exe /register` to register as a text viewer across all supported formats in your user profile without admin rights.
+  * Fully integrates with Windows Settings > Apps > Default apps via `Capabilities` and `RegisteredApplications`.
+  * Fully supports `/silent` flag for script-driven and automated deployments.
 
 ---
 
@@ -97,6 +99,21 @@ Measured on Windows 11 (64-bit):
 
 ---
 
+## 📂 Supported Formats
+
+LightNotePad includes a single unified source of truth for text file extensions, powering the Open/Save dialog filters, multi-file selection, shell context menus, and Windows Default Apps registration:
+
+| Category | File Extensions | Wildcard Pattern |
+| :--- | :--- | :--- |
+| **Plain Text & Logs** | `.txt`, `.text`, `.log`, `.out`, `.err` | `*.txt;*.text;*.log;*.out;*.err` |
+| **Markdown Documents** | `.md`, `.markdown` | `*.md;*.markdown` |
+| **Configuration & Settings** | `.ini`, `.cfg`, `.conf`, `.config`, `.inf`, `.properties`, `.env` | `*.ini;*.cfg;*.conf;*.config;*.inf;*.properties;*.env` |
+| **Structured Data** | `.json`, `.xml`, `.yaml`, `.yml`, `.csv`, `.tsv`, `.toml` | `*.json;*.xml;*.yaml;*.yml;*.csv;*.tsv;*.toml` |
+| **Source Code & Scripts** | `.c`, `.cpp`, `.h`, `.hpp`, `.cs`, `.js`, `.ts`, `.py`, `.html`, `.htm`, `.css`, `.sql`, `.sh`, `.bat`, `.cmd`, `.ps1` | `*.c;*.cpp;*.h;*.hpp;*.cs;*.js;*.ts;*.py;*.html;*.htm;*.css;*.sql;*.sh;*.bat;*.cmd;*.ps1` |
+| **All Files** | Any extension (`*.*`) via dialog filter, CLI argument, or Drag & Drop | `*.*` |
+
+---
+
 ## 💻 Command Line Usage
 
 ```cmd
@@ -106,18 +123,28 @@ LightNotePad.exe
 :: Open a specific file
 LightNotePad.exe "C:\path\to\file.txt"
 
-:: Open multiple files into tabs
-LightNotePad.exe file1.txt file2.log config.ini
+:: Open multiple files simultaneously into tabs
+LightNotePad.exe file1.txt file2.log config.ini data.json
 
 :: Open an independent window instance
 LightNotePad.exe --new-window
 
-:: Register as default text editor in user profile (no admin rights required)
+:: Register shell associations in user profile (no admin rights required)
+:: Sets up ProgID (LightNotePad.Document), OpenWithProgids, Applications\LightNotePad.exe,
+:: and Windows Default Apps Capabilities (Software\LightNotePad\Capabilities & RegisteredApplications).
 LightNotePad.exe /register
 
-:: Remove file associations
+:: Register silently (no graphical message box)
+LightNotePad.exe /register /silent
+
+:: Remove all registered shell associations, ProgID, and Capabilities cleanly
 LightNotePad.exe /unregister
+
+:: Remove associations silently
+LightNotePad.exe /unregister /silent
 ```
+
+> **Note on Windows Default Apps**: Per Windows 10/11 security architecture, running `/register` publishes the app's capabilities to Windows. To set LightNotePad as your default handler for specific extensions, select it in **Windows Settings > Apps > Default apps**, or right-click any supported file and choose **"Open with" > "Choose another app" > "Always"**.
 
 ---
 

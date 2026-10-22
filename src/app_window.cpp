@@ -1,6 +1,7 @@
 #include "pch.hpp"
 #include "app_window.hpp"
 #include "shortcuts_dialog.hpp"
+#include "supported_formats.hpp"
 
 #ifndef DWMWA_USE_IMMERSIVE_DARK_MODE
 #define DWMWA_USE_IMMERSIVE_DARK_MODE 20
@@ -439,24 +440,72 @@ void AppWindow::UpdateWindowTitle() {
 }
 
 void AppWindow::OpenFileDialog() {
-    wchar_t szFile[MAX_PATH] = {};
+    // Build the filter string at runtime from the shared extension lists so it never drifts
+    // from what the app can actually open. Entries are "description\0pattern\0".
+    const std::wstring allPattern = SupportedFormats::BuildAllSupportedPattern();
+    const std::wstring textPattern = SupportedFormats::BuildPattern(SupportedFormats::kText);
+    const std::wstring mdPattern = SupportedFormats::BuildPattern(SupportedFormats::kMarkdown);
+    const std::wstring configPattern = SupportedFormats::BuildPattern(SupportedFormats::kConfig);
+    const std::wstring dataPattern = SupportedFormats::BuildPattern(SupportedFormats::kData);
+    const std::wstring codePattern = SupportedFormats::BuildPattern(SupportedFormats::kCode);
+
+    std::wstring filter;
+    auto addFilter = [&filter](const std::wstring& desc, const std::wstring& pattern) {
+        filter += desc;
+        filter.push_back(L'\0');
+        filter += pattern;
+        filter.push_back(L'\0');
+    };
+
+    addFilter(L"All Supported Documents", allPattern);
+    addFilter(L"Text Documents (" + textPattern + L")", textPattern);
+    addFilter(L"Markdown Documents (" + mdPattern + L")", mdPattern);
+    addFilter(L"Configuration Files (" + configPattern + L")", configPattern);
+    addFilter(L"Structured Data (" + dataPattern + L")", dataPattern);
+    addFilter(L"Source Code & Scripts (" + codePattern + L")", codePattern);
+    addFilter(L"All Files (*.*)", L"*.*");
+    filter.push_back(L'\0'); // double-null terminator
+
+    // Large buffer so multiple selections and long paths fit.
+    std::vector<wchar_t> buffer(32768, L'\0');
+
     OPENFILENAMEW ofn = { sizeof(OPENFILENAMEW) };
     ofn.hwndOwner = m_hWnd;
-    ofn.lpstrFile = szFile;
-    ofn.nMaxFile = MAX_PATH;
-    ofn.lpstrFilter = L"Text Documents (*.txt)\0*.txt\0All Files (*.*)\0*.*\0";
+    ofn.lpstrFile = buffer.data();
+    ofn.nMaxFile = static_cast<DWORD>(buffer.size());
+    ofn.lpstrFilter = filter.c_str();
     ofn.nFilterIndex = 1;
-    ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_EXPLORER;
+    ofn.lpstrTitle = L"Open Document";
+    ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_EXPLORER |
+                OFN_ALLOWMULTISELECT | OFN_NOCHANGEDIR | OFN_HIDEREADONLY | OFN_ENABLESIZING;
 
     if (GetOpenFileNameW(&ofn)) {
-        EditorTab* active = GetActiveTab();
-        if (active && active->GetFilePath().empty() && !active->IsDirty()) {
-            active->OpenFile(szFile);
-            UpdateWindowTitle();
+        // Single selection: buffer holds the full path. Multi-selection: "dir\0file1\0file2\0\0".
+        std::vector<std::wstring> files;
+        const wchar_t* first = buffer.data();
+        const wchar_t* next = first + wcslen(first) + 1;
+        if (*next == L'\0') {
+            files.emplace_back(first);
         } else {
-            CreateNewTab(szFile);
+            std::wstring dir = first;
+            if (!dir.empty() && dir.back() != L'\\') dir += L'\\';
+            for (const wchar_t* p = next; *p; p += wcslen(p) + 1) {
+                files.push_back(dir + p);
+            }
         }
-        AddRecentFile(szFile);
+
+        bool isFirst = true;
+        for (const auto& file : files) {
+            EditorTab* active = GetActiveTab();
+            if (isFirst && active && active->GetFilePath().empty() && !active->IsDirty()) {
+                active->OpenFile(file);
+                UpdateWindowTitle();
+            } else {
+                CreateNewTab(file);
+            }
+            AddRecentFile(file);
+            isFirst = false;
+        }
     }
 }
 
@@ -465,24 +514,48 @@ bool AppWindow::SaveCurrentFile(bool saveAs) {
     if (!active) return false;
 
     if (saveAs || active->GetFilePath().empty()) {
-        wchar_t szFile[MAX_PATH] = {};
+        std::vector<wchar_t> buffer(32768, L'\0');
         if (!active->GetFilePath().empty()) {
-            wcscpy_s(szFile, active->GetFilePath().c_str());
+            wcsncpy_s(buffer.data(), buffer.size(), active->GetFilePath().c_str(), _TRUNCATE);
         }
+
+        const std::wstring textPattern = SupportedFormats::BuildPattern(SupportedFormats::kText);
+        const std::wstring mdPattern = SupportedFormats::BuildPattern(SupportedFormats::kMarkdown);
+        const std::wstring configPattern = SupportedFormats::BuildPattern(SupportedFormats::kConfig);
+        const std::wstring dataPattern = SupportedFormats::BuildPattern(SupportedFormats::kData);
+        const std::wstring codePattern = SupportedFormats::BuildPattern(SupportedFormats::kCode);
+
+        std::wstring filter;
+        auto addFilter = [&filter](const std::wstring& desc, const std::wstring& pattern) {
+            filter += desc;
+            filter.push_back(L'\0');
+            filter += pattern;
+            filter.push_back(L'\0');
+        };
+
+        addFilter(L"Text Documents (" + textPattern + L")", textPattern);
+        addFilter(L"Markdown Documents (" + mdPattern + L")", mdPattern);
+        addFilter(L"Configuration Files (" + configPattern + L")", configPattern);
+        addFilter(L"Structured Data (" + dataPattern + L")", dataPattern);
+        addFilter(L"Source Code & Scripts (" + codePattern + L")", codePattern);
+        addFilter(L"All Files (*.*)", L"*.*");
+        filter.push_back(L'\0'); // double-null terminator
 
         OPENFILENAMEW ofn = { sizeof(OPENFILENAMEW) };
         ofn.hwndOwner = m_hWnd;
-        ofn.lpstrFile = szFile;
-        ofn.nMaxFile = MAX_PATH;
-        ofn.lpstrFilter = L"Text Documents (*.txt)\0*.txt\0All Files (*.*)\0*.*\0";
+        ofn.lpstrFile = buffer.data();
+        ofn.nMaxFile = static_cast<DWORD>(buffer.size());
+        ofn.lpstrFilter = filter.c_str();
         ofn.nFilterIndex = 1;
-        ofn.Flags = OFN_PATHMUSTEXIST | OFN_OVERWRITEPROMPT | OFN_EXPLORER;
+        ofn.lpstrTitle = L"Save Document As";
+        ofn.Flags = OFN_PATHMUSTEXIST | OFN_OVERWRITEPROMPT | OFN_EXPLORER |
+                    OFN_NOCHANGEDIR | OFN_HIDEREADONLY | OFN_ENABLESIZING;
         ofn.lpstrDefExt = L"txt";
 
         if (GetSaveFileNameW(&ofn)) {
-            if (active->SaveFile(szFile)) {
+            if (active->SaveFile(buffer.data())) {
                 UpdateWindowTitle();
-                AddRecentFile(szFile);
+                AddRecentFile(buffer.data());
                 return true;
             }
         }
@@ -1353,4 +1426,138 @@ LRESULT AppWindow::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
     }
     }
     return DefWindowProcW(m_hWnd, msg, wParam, lParam);
+}
+
+void AppWindow::RegisterShellAssociations() {
+    wchar_t exePath[MAX_PATH * 2] = {};
+    GetModuleFileNameW(nullptr, exePath, _countof(exePath));
+
+    auto setString = [](HKEY key, const wchar_t* name, const std::wstring& value) {
+        RegSetValueExW(key, name, 0, REG_SZ, reinterpret_cast<const BYTE*>(value.c_str()),
+                       static_cast<DWORD>((value.length() + 1) * sizeof(wchar_t)));
+    };
+
+    const std::vector<std::wstring> extensions = SupportedFormats::GetAllExtensions();
+    const wchar_t* progId = L"LightNotePad.Document";
+
+    // 1. ProgID under HKCU\Software\Classes\LightNotePad.Document
+    HKEY hKeyProgId = nullptr;
+    if (RegCreateKeyExW(HKEY_CURRENT_USER, L"Software\\Classes\\LightNotePad.Document", 0, nullptr,
+        REG_OPTION_NON_VOLATILE, KEY_WRITE, nullptr, &hKeyProgId, nullptr) == ERROR_SUCCESS) {
+
+        const wchar_t desc[] = L"Text Document (LightNotePad)";
+        RegSetValueExW(hKeyProgId, nullptr, 0, REG_SZ, reinterpret_cast<const BYTE*>(desc),
+                       static_cast<DWORD>((wcslen(desc) + 1) * sizeof(wchar_t)));
+
+        // Default Icon: exePath,0
+        HKEY hKeyIcon = nullptr;
+        if (RegCreateKeyExW(hKeyProgId, L"DefaultIcon", 0, nullptr,
+            REG_OPTION_NON_VOLATILE, KEY_WRITE, nullptr, &hKeyIcon, nullptr) == ERROR_SUCCESS) {
+            std::wstring iconVal = std::wstring(exePath) + L",0";
+            RegSetValueExW(hKeyIcon, nullptr, 0, REG_SZ, reinterpret_cast<const BYTE*>(iconVal.c_str()),
+                           static_cast<DWORD>((iconVal.length() + 1) * sizeof(wchar_t)));
+            RegCloseKey(hKeyIcon);
+        }
+
+        // shell\open\command: "exePath" "%1"
+        HKEY hKeyCmd = nullptr;
+        if (RegCreateKeyExW(hKeyProgId, L"shell\\open\\command", 0, nullptr,
+            REG_OPTION_NON_VOLATILE, KEY_WRITE, nullptr, &hKeyCmd, nullptr) == ERROR_SUCCESS) {
+            std::wstring cmdVal = L"\"" + std::wstring(exePath) + L"\" \"%1\"";
+            RegSetValueExW(hKeyCmd, nullptr, 0, REG_SZ, reinterpret_cast<const BYTE*>(cmdVal.c_str()),
+                           static_cast<DWORD>((cmdVal.length() + 1) * sizeof(wchar_t)));
+            RegCloseKey(hKeyCmd);
+        }
+
+        RegCloseKey(hKeyProgId);
+    }
+
+    // 2. OpenWithProgids for every supported extension (REG_NONE)
+    for (const auto& ext : extensions) {
+        std::wstring keyPath = L"Software\\Classes\\" + ext + L"\\OpenWithProgids";
+        HKEY hKeyExt = nullptr;
+        if (RegCreateKeyExW(HKEY_CURRENT_USER, keyPath.c_str(), 0, nullptr,
+            REG_OPTION_NON_VOLATILE, KEY_WRITE, nullptr, &hKeyExt, nullptr) == ERROR_SUCCESS) {
+            RegSetValueExW(hKeyExt, progId, 0, REG_NONE, nullptr, 0);
+            RegCloseKey(hKeyExt);
+        }
+    }
+
+    // 3. Applications\LightNotePad.exe: Open with lists and Explorer integration
+    const std::wstring exeName = std::filesystem::path(exePath).filename().wstring();
+    const std::wstring appKeyPath = L"Software\\Classes\\Applications\\" + exeName;
+    HKEY hKeyApp = nullptr;
+    if (RegCreateKeyExW(HKEY_CURRENT_USER, appKeyPath.c_str(), 0, nullptr,
+        REG_OPTION_NON_VOLATILE, KEY_WRITE, nullptr, &hKeyApp, nullptr) == ERROR_SUCCESS) {
+        setString(hKeyApp, L"FriendlyAppName", L"LightNotePad");
+
+        HKEY hKeyCmd = nullptr;
+        if (RegCreateKeyExW(hKeyApp, L"shell\\open\\command", 0, nullptr,
+            REG_OPTION_NON_VOLATILE, KEY_WRITE, nullptr, &hKeyCmd, nullptr) == ERROR_SUCCESS) {
+            setString(hKeyCmd, nullptr, L"\"" + std::wstring(exePath) + L"\" \"%1\"");
+            RegCloseKey(hKeyCmd);
+        }
+
+        HKEY hKeyTypes = nullptr;
+        if (RegCreateKeyExW(hKeyApp, L"SupportedTypes", 0, nullptr,
+            REG_OPTION_NON_VOLATILE, KEY_WRITE, nullptr, &hKeyTypes, nullptr) == ERROR_SUCCESS) {
+            for (const auto& ext : extensions) {
+                setString(hKeyTypes, ext.c_str(), L"");
+            }
+            RegCloseKey(hKeyTypes);
+        }
+        RegCloseKey(hKeyApp);
+    }
+
+    // 4. Capabilities + RegisteredApplications: lists LightNotePad in
+    // Windows Settings > Apps > Default apps so users can choose it as the default editor.
+    HKEY hKeyCaps = nullptr;
+    if (RegCreateKeyExW(HKEY_CURRENT_USER, L"Software\\LightNotePad\\Capabilities", 0, nullptr,
+        REG_OPTION_NON_VOLATILE, KEY_WRITE, nullptr, &hKeyCaps, nullptr) == ERROR_SUCCESS) {
+        setString(hKeyCaps, L"ApplicationName", L"LightNotePad");
+        setString(hKeyCaps, L"ApplicationDescription", L"Ultra-fast, minimalist text editor");
+
+        HKEY hKeyAssoc = nullptr;
+        if (RegCreateKeyExW(hKeyCaps, L"FileAssociations", 0, nullptr,
+            REG_OPTION_NON_VOLATILE, KEY_WRITE, nullptr, &hKeyAssoc, nullptr) == ERROR_SUCCESS) {
+            for (const auto& ext : extensions) {
+                setString(hKeyAssoc, ext.c_str(), progId);
+            }
+            RegCloseKey(hKeyAssoc);
+        }
+        RegCloseKey(hKeyCaps);
+    }
+
+    HKEY hKeyRegApps = nullptr;
+    if (RegCreateKeyExW(HKEY_CURRENT_USER, L"Software\\RegisteredApplications", 0, nullptr,
+        REG_OPTION_NON_VOLATILE, KEY_WRITE, nullptr, &hKeyRegApps, nullptr) == ERROR_SUCCESS) {
+        setString(hKeyRegApps, L"LightNotePad", L"Software\\LightNotePad\\Capabilities");
+        RegCloseKey(hKeyRegApps);
+    }
+
+    SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, nullptr, nullptr);
+}
+
+void AppWindow::UnregisterShellAssociations() {
+    RegDeleteTreeW(HKEY_CURRENT_USER, L"Software\\Classes\\LightNotePad.Document");
+    RegDeleteTreeW(HKEY_CURRENT_USER, L"Software\\Classes\\Applications\\LightNotePad.exe");
+    RegDeleteTreeW(HKEY_CURRENT_USER, L"Software\\LightNotePad\\Capabilities");
+
+    HKEY hKeyRegApps = nullptr;
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\RegisteredApplications", 0, KEY_WRITE, &hKeyRegApps) == ERROR_SUCCESS) {
+        RegDeleteValueW(hKeyRegApps, L"LightNotePad");
+        RegCloseKey(hKeyRegApps);
+    }
+
+    const std::vector<std::wstring> extensions = SupportedFormats::GetAllExtensions();
+    for (const auto& ext : extensions) {
+        std::wstring keyPath = L"Software\\Classes\\" + ext + L"\\OpenWithProgids";
+        HKEY hKeyExt = nullptr;
+        if (RegOpenKeyExW(HKEY_CURRENT_USER, keyPath.c_str(), 0, KEY_WRITE, &hKeyExt) == ERROR_SUCCESS) {
+            RegDeleteValueW(hKeyExt, L"LightNotePad.Document");
+            RegCloseKey(hKeyExt);
+        }
+    }
+
+    SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, nullptr, nullptr);
 }

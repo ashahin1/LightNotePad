@@ -102,7 +102,14 @@ LRESULT CALLBACK EditorTab::EditSubclassProc(HWND hWnd, UINT uMsg, WPARAM wParam
                 return 0;
             }
         }
-        break;
+
+        LRESULT res = DefSubclassProc(hWnd, uMsg, wParam, lParam);
+        if (pTab->m_language != SyntaxLanguage::None && pTab->m_syntaxEnabled) {
+            if (wParam == VK_PRIOR || wParam == VK_NEXT || wParam == VK_UP || wParam == VK_DOWN || wParam == VK_HOME || wParam == VK_END) {
+                pTab->ColorizeViewport();
+            }
+        }
+        return res;
     }
     case WM_VSCROLL:
     case WM_MOUSEWHEEL: {
@@ -438,8 +445,8 @@ void EditorTab::ColorizeViewport() {
         lastLine = firstLine + 50;
     }
 
-    long startLine = std::max(0L, static_cast<long>(firstLine) - 10);
-    long endLine = static_cast<long>(lastLine) + 20;
+    long startLine = std::max(0L, static_cast<long>(firstLine) - 50);
+    long endLine = static_cast<long>(lastLine) + 100;
 
     ColorizeRange(startLine, endLine);
 }
@@ -503,6 +510,8 @@ void EditorTab::ColorizeRange(long startLine, long endLine) {
 
     m_pTextDoc->Undo(tomResume, nullptr);
     m_pTextDoc->Unfreeze(&freezeCount);
+
+    InvalidateRect(m_hEdit, nullptr, FALSE);
 
     SendMessageW(m_hEdit, EM_SETEVENTMASK, 0, oldMask);
     if (!wasModified) {

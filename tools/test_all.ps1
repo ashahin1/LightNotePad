@@ -116,5 +116,13 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
+# 6. Test Document Dirty / Clean State (Opening, Scrolling, Editing, Saving)
+Write-Host "`n6. Testing Document Dirty / Clean State..."
+& powershell -ExecutionPolicy Bypass -File "$PSScriptRoot\run_dirty_test.ps1"
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Dirty state verification tests failed!"
+    exit 1
+}
+
 Write-Host "`nAll LightNotePad verification tests passed successfully!" -ForegroundColor Green
 exit 0

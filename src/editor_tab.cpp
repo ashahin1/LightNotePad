@@ -210,16 +210,17 @@ bool EditorTab::OpenFile(const std::wstring& path) {
 
     SendMessage(m_hEdit, EM_STREAMIN, SF_UNICODE | SF_TEXT, reinterpret_cast<LPARAM>(&es));
 
-    // Reset dirty state & clear undo
-    SendMessage(m_hEdit, EM_SETMODIFY, FALSE, 0);
-    SendMessage(m_hEdit, EM_EMPTYUNDOBUFFER, 0, 0);
-
     // Reset caret to beginning
     CHARRANGE cr = { 0, 0 };
     SendMessage(m_hEdit, EM_EXSETSEL, 0, reinterpret_cast<LPARAM>(&cr));
 
     ApplyTheme(m_darkMode);
     ConfigureSyntaxMode();
+
+    // Reset dirty state & clear undo AFTER theme and syntax configuration
+    SendMessage(m_hEdit, EM_SETMODIFY, FALSE, 0);
+    SendMessage(m_hEdit, EM_EMPTYUNDOBUFFER, 0, 0);
+
     return true;
 }
 
@@ -237,8 +238,9 @@ bool EditorTab::SaveFile(const std::wstring& path) {
     }
 
     SetFilePath(path);
-    SetDirty(false);
     ConfigureSyntaxMode();
+    SetDirty(false);
+    SendMessage(m_hEdit, EM_EMPTYUNDOBUFFER, 0, 0);
     return true;
 }
 
@@ -252,6 +254,8 @@ bool EditorTab::Save() {
 void EditorTab::ApplyTheme(bool darkMode) {
     m_darkMode = darkMode;
     if (!m_hEdit) return;
+
+    BOOL wasModified = (SendMessageW(m_hEdit, EM_GETMODIFY, 0, 0) != 0);
 
     COLORREF bgColor = darkMode ? RGB(30, 30, 30) : RGB(255, 255, 255);
     COLORREF fgColor = darkMode ? RGB(220, 220, 220) : RGB(0, 0, 0);
@@ -277,6 +281,11 @@ void EditorTab::ApplyTheme(bool darkMode) {
 
     if (m_language != SyntaxLanguage::None && m_syntaxEnabled) {
         ColorizeViewport();
+    }
+
+    if (!wasModified) {
+        SendMessage(m_hEdit, EM_SETMODIFY, FALSE, 0);
+        SendMessage(m_hEdit, EM_EMPTYUNDOBUFFER, 0, 0);
     }
 }
 
@@ -406,7 +415,12 @@ void EditorTab::ConfigureSyntaxMode() {
 void EditorTab::SetSyntaxEnabled(bool enabled) {
     if (m_syntaxEnabled != enabled) {
         m_syntaxEnabled = enabled;
+        BOOL wasModified = (SendMessageW(m_hEdit, EM_GETMODIFY, 0, 0) != 0);
         ConfigureSyntaxMode();
+        if (!wasModified) {
+            SendMessage(m_hEdit, EM_SETMODIFY, FALSE, 0);
+            SendMessage(m_hEdit, EM_EMPTYUNDOBUFFER, 0, 0);
+        }
     }
 }
 
@@ -490,10 +504,11 @@ void EditorTab::ColorizeRange(long startLine, long endLine) {
     m_pTextDoc->Undo(tomResume, nullptr);
     m_pTextDoc->Unfreeze(&freezeCount);
 
+    SendMessageW(m_hEdit, EM_SETEVENTMASK, 0, oldMask);
     if (!wasModified) {
         SendMessageW(m_hEdit, EM_SETMODIFY, FALSE, 0);
     }
-    SendMessageW(m_hEdit, EM_SETEVENTMASK, 0, oldMask);
+
     m_isColorizing = false;
 }
 

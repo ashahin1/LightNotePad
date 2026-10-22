@@ -19,6 +19,8 @@
 #include <commctrl.h>
 #include <commdlg.h>
 #include <richedit.h>
+#include <richole.h>
+#include <tom.h>
 #include <dwmapi.h>
 #include <uxtheme.h>
 #include <shlwapi.h>

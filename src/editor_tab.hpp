@@ -1,6 +1,7 @@
 #pragma once
 #include "pch.hpp"
 #include "file_io.hpp"
+#include "syntax_highlighter.hpp"
 
 class EditorTab {
 public:
@@ -44,6 +45,15 @@ public:
     void SetBounds(int x, int y, int width, int height);
     void SetFocus();
 
+    // Syntax Highlighting
+    SyntaxLanguage GetLanguage() const { return m_language; }
+    void SetSyntaxEnabled(bool enabled);
+    bool IsSyntaxEnabled() const { return m_syntaxEnabled; }
+    void ConfigureSyntaxMode();
+    void ColorizeViewport();
+    void ColorizeRange(long startLine, long endLine);
+    void OnTextChanged();
+
     // Text editing commands
     void Undo();
     void Redo();
@@ -55,6 +65,8 @@ public:
     void InsertText(const std::wstring& text);
 
 private:
+    static LRESULT CALLBACK EditSubclassProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData);
+
     HWND m_hParent = nullptr;
     HINSTANCE m_hInstance = nullptr;
     HWND m_hEdit = nullptr;
@@ -69,4 +81,9 @@ private:
     int m_zoomPercent = 100;
     bool m_darkMode = false;
     HFONT m_hFont = nullptr;
+
+    SyntaxLanguage m_language = SyntaxLanguage::None;
+    bool m_syntaxEnabled = true;
+    bool m_isColorizing = false;
+    ITextDocument* m_pTextDoc = nullptr;
 };

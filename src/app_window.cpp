@@ -226,6 +226,7 @@ void AppWindow::CreateAppMenu() {
     // View Menu
     HMENU hViewMenu = CreatePopupMenu();
     AppendMenuW(hViewMenu, MF_STRING | MF_CHECKED, IDM_VIEW_WORDWRAP, L"Word Wrap\tAlt+Z");
+    AppendMenuW(hViewMenu, MF_STRING | MF_CHECKED, IDM_VIEW_SYNTAX, L"Syntax Highlighting");
     AppendMenuW(hViewMenu, MF_STRING, IDM_VIEW_FONT, L"Font...");
     AppendMenuW(hViewMenu, MF_STRING, IDM_VIEW_FONTRESET, L"Restore Default Font");
     AppendMenuW(hViewMenu, MF_SEPARATOR, 0, nullptr);
@@ -294,6 +295,7 @@ EditorTab* AppWindow::CreateNewTab(const std::wstring& filePath) {
     tab->SetFont(m_hEditorFont);
     tab->ApplyTheme(m_darkMode);
     tab->SetWordWrap(m_wordWrap);
+    tab->SetSyntaxEnabled(m_syntaxHighlighting);
 
     if (!filePath.empty()) {
         tab->OpenFile(filePath);
@@ -333,6 +335,7 @@ void AppWindow::SwitchToTab(int tabId) {
     if (active) {
         active->SetFocus();
         CheckMenuItem(m_hMenu, IDM_VIEW_WORDWRAP, active->IsWordWrap() ? MF_CHECKED : MF_UNCHECKED);
+        active->ColorizeViewport();
     }
 
     UpdateLayout();
@@ -693,6 +696,9 @@ void AppWindow::PrintDocument() {
         // Free formatting cache and restore editor colors
         SendMessage(hEdit, EM_FORMATRANGE, FALSE, 0);
         SendMessage(hEdit, EM_SETCHARFORMAT, SCF_ALL, reinterpret_cast<LPARAM>(&cfRestore));
+        if (active->IsSyntaxEnabled() && active->GetLanguage() != SyntaxLanguage::None) {
+            active->ColorizeViewport();
+        }
 
         if (hHdrFont) DeleteObject(hHdrFont);
         EndDoc(hPrnDC);
@@ -714,6 +720,21 @@ void AppWindow::ToggleWordWrap() {
     if (RegCreateKeyExW(HKEY_CURRENT_USER, L"Software\\LightNotePad", 0, nullptr, 0, KEY_WRITE, nullptr, &hAppKey, nullptr) == ERROR_SUCCESS) {
         DWORD val = m_wordWrap ? 1 : 0;
         RegSetValueExW(hAppKey, L"WordWrap", 0, REG_DWORD, reinterpret_cast<const BYTE*>(&val), sizeof(val));
+        RegCloseKey(hAppKey);
+    }
+}
+
+void AppWindow::ToggleSyntaxHighlighting() {
+    m_syntaxHighlighting = !m_syntaxHighlighting;
+    for (auto& tab : m_tabs) {
+        tab->SetSyntaxEnabled(m_syntaxHighlighting);
+    }
+    CheckMenuItem(m_hMenu, IDM_VIEW_SYNTAX, m_syntaxHighlighting ? MF_CHECKED : MF_UNCHECKED);
+
+    HKEY hAppKey = nullptr;
+    if (RegCreateKeyExW(HKEY_CURRENT_USER, L"Software\\LightNotePad", 0, nullptr, 0, KEY_WRITE, nullptr, &hAppKey, nullptr) == ERROR_SUCCESS) {
+        DWORD val = m_syntaxHighlighting ? 1 : 0;
+        RegSetValueExW(hAppKey, L"SyntaxHighlighting", 0, REG_DWORD, reinterpret_cast<const BYTE*>(&val), sizeof(val));
         RegCloseKey(hAppKey);
     }
 }
@@ -1168,7 +1189,7 @@ bool AppWindow::Create(HINSTANCE hInstance, int nCmdShow, const std::vector<std:
 
     InitDarkMode();
 
-    // Load WordWrap setting
+    // Load WordWrap and SyntaxHighlighting settings
     HKEY hAppKey = nullptr;
     if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\LightNotePad", 0, KEY_READ, &hAppKey) == ERROR_SUCCESS) {
         DWORD val = 1;
@@ -1176,9 +1197,15 @@ bool AppWindow::Create(HINSTANCE hInstance, int nCmdShow, const std::vector<std:
         if (RegQueryValueExW(hAppKey, L"WordWrap", nullptr, nullptr, reinterpret_cast<LPBYTE>(&val), &size) == ERROR_SUCCESS) {
             m_wordWrap = (val != 0);
         }
+        val = 1;
+        size = sizeof(val);
+        if (RegQueryValueExW(hAppKey, L"SyntaxHighlighting", nullptr, nullptr, reinterpret_cast<LPBYTE>(&val), &size) == ERROR_SUCCESS) {
+            m_syntaxHighlighting = (val != 0);
+        }
         RegCloseKey(hAppKey);
     }
     CheckMenuItem(m_hMenu, IDM_VIEW_WORDWRAP, m_wordWrap ? MF_CHECKED : MF_UNCHECKED);
+    CheckMenuItem(m_hMenu, IDM_VIEW_SYNTAX, m_syntaxHighlighting ? MF_CHECKED : MF_UNCHECKED);
 
     LoadRecentFiles();
     UpdateRecentMenu();
@@ -1279,6 +1306,17 @@ LRESULT AppWindow::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
         }
         break;
     }
+    case WM_TIMER: {
+        if (wParam == 101) {
+            KillTimer(m_hWnd, 101);
+            EditorTab* active = GetActiveTab();
+            if (active) {
+                active->ColorizeViewport();
+            }
+            return 0;
+        }
+        break;
+    }
     case WM_SETFOCUS: {
         EditorTab* active = GetActiveTab();
         if (active) active->SetFocus();
@@ -1289,7 +1327,16 @@ LRESULT AppWindow::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
         WORD id = LOWORD(wParam);
 
         // Edit control notifications
-        if (code == EN_CHANGE || code == EN_SELCHANGE) {
+        if (code == EN_CHANGE) {
+            EditorTab* active = GetActiveTab();
+            if (active) {
+                active->OnTextChanged();
+            }
+            UpdateWindowTitle();
+            SetTimer(m_hWnd, 101, 30, nullptr);
+            return 0;
+        }
+        if (code == EN_SELCHANGE) {
             UpdateWindowTitle();
             return 0;
         }
@@ -1347,6 +1394,7 @@ LRESULT AppWindow::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
             break;
         }
         case IDM_VIEW_DARKMODE:   ToggleDarkMode(); break;
+        case IDM_VIEW_SYNTAX:     ToggleSyntaxHighlighting(); break;
 
         case IDM_TAB_NEXT: {
             if (m_tabs.size() > 1) {

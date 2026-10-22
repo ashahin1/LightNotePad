@@ -117,7 +117,7 @@ if ($needPch) {
     Write-Host "Generating Precompiled Header (pch.pch)..." -ForegroundColor Yellow
     $pchArgs = @(
         "/nologo",
-        "/O2",
+        "/O1",
         "/MT",
         "/std:c++20",
         "/GL",
@@ -152,6 +152,7 @@ $sources = @(
     "src\main.cpp",
     "src\app_window.cpp",
     "src\editor_tab.cpp",
+    "src\syntax_highlighter.cpp",
     "src\tab_bar.cpp",
     "src\file_io.cpp",
     "src\status_bar.cpp",
@@ -185,7 +186,7 @@ if ($staleSources.Count -gt 0) {
     $clArgs = @(
         "/nologo",
         "/MP",
-        "/O2",
+        "/O1",
         "/MT",
         "/std:c++20",
         "/GL",
@@ -257,6 +258,7 @@ if ($needLink) {
         "dwmapi.lib",
         "uxtheme.lib",
         "advapi32.lib",
+        "ole32.lib",
         "/OUT:$targetExe"
     )
 

@@ -49,10 +49,75 @@ EditorTab::~EditorTab() {
 }
 
 void EditorTab::Destroy() {
+    if (m_pTextDoc) {
+        m_pTextDoc->Release();
+        m_pTextDoc = nullptr;
+    }
     if (m_hEdit) {
+        RemoveWindowSubclass(m_hEdit, EditSubclassProc, 1);
         DestroyWindow(m_hEdit);
         m_hEdit = nullptr;
     }
+}
+
+LRESULT CALLBACK EditorTab::EditSubclassProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData) {
+    auto* pTab = reinterpret_cast<EditorTab*>(dwRefData);
+    if (!pTab) return DefSubclassProc(hWnd, uMsg, wParam, lParam);
+
+    switch (uMsg) {
+    case WM_PASTE: {
+        if (pTab->m_language != SyntaxLanguage::None && pTab->m_syntaxEnabled) {
+            SendMessageW(hWnd, EM_PASTESPECIAL, CF_UNICODETEXT, 0);
+            return 0;
+        }
+        break;
+    }
+    case WM_KEYDOWN: {
+        bool ctrl = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
+        bool shift = (GetKeyState(VK_SHIFT) & 0x8000) != 0;
+
+        if (ctrl && !shift && (wParam == 'V' || wParam == 'v')) {
+            if (pTab->m_language != SyntaxLanguage::None && pTab->m_syntaxEnabled) {
+                SendMessageW(hWnd, EM_PASTESPECIAL, CF_UNICODETEXT, 0);
+                return 0;
+            }
+        }
+        if (shift && !ctrl && wParam == VK_INSERT) {
+            if (pTab->m_language != SyntaxLanguage::None && pTab->m_syntaxEnabled) {
+                SendMessageW(hWnd, EM_PASTESPECIAL, CF_UNICODETEXT, 0);
+                return 0;
+            }
+        }
+
+        // Suppress RichEdit rich-formatting hotkeys
+        if (ctrl && !shift) {
+            switch (wParam) {
+            case 'B': case 'b': // Bold
+            case 'I': case 'i': // Italic
+            case 'U': case 'u': // Underline
+            case 'E': case 'e': // Center
+            case 'L': case 'l': // Align left
+            case 'R': case 'r': // Align right
+            case 'J': case 'j': // Justify
+                return 0;
+            }
+        }
+        break;
+    }
+    case WM_VSCROLL:
+    case WM_MOUSEWHEEL: {
+        LRESULT res = DefSubclassProc(hWnd, uMsg, wParam, lParam);
+        if (pTab->m_language != SyntaxLanguage::None && pTab->m_syntaxEnabled) {
+            pTab->ColorizeViewport();
+        }
+        return res;
+    }
+    case WM_NCDESTROY: {
+        RemoveWindowSubclass(hWnd, EditSubclassProc, uIdSubclass);
+        break;
+    }
+    }
+    return DefSubclassProc(hWnd, uMsg, wParam, lParam);
 }
 
 bool EditorTab::Create() {
@@ -75,8 +140,8 @@ bool EditorTab::Create() {
         return false;
     }
 
-    // Configure plain text mode
-    SendMessage(m_hEdit, EM_SETTEXTMODE, TM_PLAINTEXT, 0);
+    // Install subclass for paste sanitization and scroll-triggered syntax recoloring
+    SetWindowSubclass(m_hEdit, EditSubclassProc, 1, reinterpret_cast<DWORD_PTR>(this));
 
     // Disable rich text URL detection
     SendMessage(m_hEdit, EM_AUTOURLDETECT, FALSE, 0);
@@ -97,6 +162,8 @@ bool EditorTab::Create() {
     ApplyTheme(m_darkMode);
     SetWordWrap(m_wordWrap);
 
+    ConfigureSyntaxMode();
+
     return true;
 }
 
@@ -108,6 +175,7 @@ void EditorTab::SetFilePath(const std::wstring& path) {
         std::filesystem::path fsPath(path);
         m_fileName = fsPath.filename().wstring();
     }
+    ConfigureSyntaxMode();
 }
 
 bool EditorTab::IsDirty() const {
@@ -151,6 +219,7 @@ bool EditorTab::OpenFile(const std::wstring& path) {
     SendMessage(m_hEdit, EM_EXSETSEL, 0, reinterpret_cast<LPARAM>(&cr));
 
     ApplyTheme(m_darkMode);
+    ConfigureSyntaxMode();
     return true;
 }
 
@@ -169,6 +238,7 @@ bool EditorTab::SaveFile(const std::wstring& path) {
 
     SetFilePath(path);
     SetDirty(false);
+    ConfigureSyntaxMode();
     return true;
 }
 
@@ -204,6 +274,10 @@ void EditorTab::ApplyTheme(bool darkMode) {
 
     // Refresh display
     InvalidateRect(m_hEdit, nullptr, TRUE);
+
+    if (m_language != SyntaxLanguage::None && m_syntaxEnabled) {
+        ColorizeViewport();
+    }
 }
 
 void EditorTab::SetFont(HFONT hFont) {
@@ -275,7 +349,15 @@ void EditorTab::Undo()      { if (m_hEdit) SendMessage(m_hEdit, WM_UNDO, 0, 0); 
 void EditorTab::Redo()      { if (m_hEdit) SendMessage(m_hEdit, EM_REDO, 0, 0); }
 void EditorTab::Cut()       { if (m_hEdit) SendMessage(m_hEdit, WM_CUT, 0, 0); }
 void EditorTab::Copy()      { if (m_hEdit) SendMessage(m_hEdit, WM_COPY, 0, 0); }
-void EditorTab::Paste()     { if (m_hEdit) SendMessage(m_hEdit, WM_PASTE, 0, 0); }
+void EditorTab::Paste() {
+    if (m_hEdit) {
+        if (m_language != SyntaxLanguage::None && m_syntaxEnabled) {
+            SendMessageW(m_hEdit, EM_PASTESPECIAL, CF_UNICODETEXT, 0);
+        } else {
+            SendMessageW(m_hEdit, WM_PASTE, 0, 0);
+        }
+    }
+}
 void EditorTab::Delete()    { if (m_hEdit) SendMessage(m_hEdit, WM_CLEAR, 0, 0); }
 void EditorTab::SelectAll() {
     if (m_hEdit) {
@@ -286,5 +368,141 @@ void EditorTab::SelectAll() {
 void EditorTab::InsertText(const std::wstring& text) {
     if (m_hEdit) {
         SendMessage(m_hEdit, EM_REPLACESEL, TRUE, reinterpret_cast<LPARAM>(text.c_str()));
+    }
+}
+
+void EditorTab::ConfigureSyntaxMode() {
+    if (!m_hEdit) return;
+
+    SyntaxLanguage newLang = m_syntaxEnabled ? SyntaxHighlighter::DetectLanguage(m_filePath) : SyntaxLanguage::None;
+    m_language = newLang;
+
+    if (m_language == SyntaxLanguage::None) {
+        SendMessageW(m_hEdit, EM_SETTEXTMODE, TM_PLAINTEXT, 0);
+        ApplyTheme(m_darkMode);
+    } else {
+        // Large file safety check (> 1 MB = 1,048,576 chars)
+        GETTEXTLENGTHEX gtl = { GTL_NUMCHARS | GTL_PRECISE, 1200 };
+        LRESULT charCount = SendMessageW(m_hEdit, EM_GETTEXTLENGTHEX, reinterpret_cast<WPARAM>(&gtl), 0);
+        if (charCount > 1024 * 1024) {
+            m_language = SyntaxLanguage::None;
+            SendMessageW(m_hEdit, EM_SETTEXTMODE, TM_PLAINTEXT, 0);
+            ApplyTheme(m_darkMode);
+            return;
+        }
+
+        SendMessageW(m_hEdit, EM_SETTEXTMODE, TM_RICHTEXT, 0);
+        if (!m_pTextDoc) {
+            IUnknown* pUnk = nullptr;
+            if (SendMessageW(m_hEdit, EM_GETOLEINTERFACE, 0, reinterpret_cast<LPARAM>(&pUnk)) && pUnk) {
+                pUnk->QueryInterface(__uuidof(ITextDocument), reinterpret_cast<void**>(&m_pTextDoc));
+                pUnk->Release();
+            }
+        }
+        ColorizeViewport();
+    }
+}
+
+void EditorTab::SetSyntaxEnabled(bool enabled) {
+    if (m_syntaxEnabled != enabled) {
+        m_syntaxEnabled = enabled;
+        ConfigureSyntaxMode();
+    }
+}
+
+void EditorTab::ColorizeViewport() {
+    if (!m_hEdit || !m_pTextDoc || m_language == SyntaxLanguage::None || !m_syntaxEnabled) return;
+
+    LRESULT firstLine = SendMessageW(m_hEdit, EM_GETFIRSTVISIBLELINE, 0, 0);
+    RECT rc = {};
+    GetClientRect(m_hEdit, &rc);
+
+    POINT pt = { rc.left + 5, rc.bottom - 5 };
+    LRESULT charPos = SendMessageW(m_hEdit, EM_CHARFROMPOS, 0, reinterpret_cast<LPARAM>(&pt));
+    LRESULT lastLine = SendMessageW(m_hEdit, EM_EXLINEFROMCHAR, 0, charPos);
+    if (lastLine < firstLine) {
+        lastLine = firstLine + 50;
+    }
+
+    long startLine = std::max(0L, static_cast<long>(firstLine) - 10);
+    long endLine = static_cast<long>(lastLine) + 20;
+
+    ColorizeRange(startLine, endLine);
+}
+
+void EditorTab::ColorizeRange(long startLine, long endLine) {
+    if (!m_hEdit || !m_pTextDoc || m_language == SyntaxLanguage::None || !m_syntaxEnabled) return;
+    if (m_isColorizing) return;
+
+    LRESULT totalLines = SendMessageW(m_hEdit, EM_GETLINECOUNT, 0, 0);
+    if (startLine < 0) startLine = 0;
+    if (endLine >= totalLines) endLine = static_cast<long>(totalLines - 1);
+    if (startLine > endLine) return;
+
+    LRESULT startCp = SendMessageW(m_hEdit, EM_LINEINDEX, startLine, 0);
+    if (startCp < 0) return;
+
+    LRESULT endLineStart = SendMessageW(m_hEdit, EM_LINEINDEX, endLine, 0);
+    LRESULT endLineLen = SendMessageW(m_hEdit, EM_LINELENGTH, endLineStart, 0);
+    LRESULT endCp = endLineStart + endLineLen;
+    if (endCp <= startCp) return;
+
+    size_t rangeLen = static_cast<size_t>(endCp - startCp);
+    std::vector<wchar_t> textBuf(rangeLen + 1, L'\0');
+    TEXTRANGEW tr = {};
+    tr.chrg.cpMin = static_cast<LONG>(startCp);
+    tr.chrg.cpMax = static_cast<LONG>(endCp);
+    tr.lpstrText = textBuf.data();
+    LRESULT copied = SendMessageW(m_hEdit, EM_GETTEXTRANGE, 0, reinterpret_cast<LPARAM>(&tr));
+    if (copied <= 0) return;
+
+    std::wstring_view text(textBuf.data(), static_cast<size_t>(copied));
+    std::vector<TokenSpan> spans;
+    bool endedInComment = false;
+    SyntaxHighlighter::Tokenize(m_language, text, static_cast<long>(startCp), false, spans, endedInComment);
+
+    m_isColorizing = true;
+    LRESULT oldMask = SendMessageW(m_hEdit, EM_SETEVENTMASK, 0, 0);
+    BOOL wasModified = (SendMessageW(m_hEdit, EM_GETMODIFY, 0, 0) != 0);
+
+    long freezeCount = 0;
+    m_pTextDoc->Freeze(&freezeCount);
+    m_pTextDoc->Undo(tomSuspend, nullptr);
+
+    ITextRange* pRange = nullptr;
+    if (SUCCEEDED(m_pTextDoc->Range(static_cast<long>(startCp), static_cast<long>(endCp), &pRange)) && pRange) {
+        ITextFont* pFont = nullptr;
+        if (SUCCEEDED(pRange->GetFont(&pFont)) && pFont) {
+            COLORREF defaultColor = SyntaxHighlighter::GetTokenColor(SyntaxTokenType::Default, m_darkMode);
+            pFont->SetForeColor(defaultColor);
+
+            for (const auto& span : spans) {
+                if (span.type == SyntaxTokenType::Default) continue;
+                COLORREF tokenColor = SyntaxHighlighter::GetTokenColor(span.type, m_darkMode);
+                pRange->SetRange(span.startCp, span.endCp);
+                pFont->SetForeColor(tokenColor);
+            }
+            pFont->Release();
+        }
+        pRange->Release();
+    }
+
+    m_pTextDoc->Undo(tomResume, nullptr);
+    m_pTextDoc->Unfreeze(&freezeCount);
+
+    if (!wasModified) {
+        SendMessageW(m_hEdit, EM_SETMODIFY, FALSE, 0);
+    }
+    SendMessageW(m_hEdit, EM_SETEVENTMASK, 0, oldMask);
+    m_isColorizing = false;
+}
+
+void EditorTab::OnTextChanged() {
+    if (m_isColorizing) return;
+    if (m_language != SyntaxLanguage::None && m_syntaxEnabled) {
+        CHARRANGE cr = {};
+        SendMessageW(m_hEdit, EM_EXGETSEL, 0, reinterpret_cast<LPARAM>(&cr));
+        LRESULT activeLine = SendMessageW(m_hEdit, EM_EXLINEFROMCHAR, 0, cr.cpMin);
+        ColorizeRange(static_cast<long>(activeLine), static_cast<long>(activeLine));
     }
 }

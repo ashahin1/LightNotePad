@@ -61,7 +61,19 @@ try {
     $ansiFile = [System.IO.Path]::Combine($tempDir, "ansi_crlf.txt")
     [System.IO.File]::WriteAllText($ansiFile, "Hello LightNotePad (ANSI CRLF)`r`nLine 2", [System.Text.Encoding]::ASCII)
 
-    $testFiles = @($utf8NoBom, $utf8Bom, $utf16Le, $ansiFile)
+    $sampleCpp = [System.IO.Path]::Combine($tempDir, "sample.cpp")
+    [System.IO.File]::WriteAllText($sampleCpp, "#include <iostream>`n// Main function`nint main() {`n    std::string msg = `"Hello World`";`n    return 0;`n}", [System.Text.UTF8Encoding]::new($false))
+
+    $samplePy = [System.IO.Path]::Combine($tempDir, "sample.py")
+    [System.IO.File]::WriteAllText($samplePy, "# Python script`ndef greet(name: str):`n    msg = f`"Hello {name}`"`n    return msg`n", [System.Text.UTF8Encoding]::new($false))
+
+    $sampleJson = [System.IO.Path]::Combine($tempDir, "sample.json")
+    [System.IO.File]::WriteAllText($sampleJson, "{`n  `"name`": `"LightNotePad`",`n  `"active`": true,`n  `"count`": 42`n}", [System.Text.UTF8Encoding]::new($false))
+
+    $sampleMd = [System.IO.Path]::Combine($tempDir, "sample.md")
+    [System.IO.File]::WriteAllText($sampleMd, "# Markdown Header`n`nHere is `inline code` and a quote:`n> Note", [System.Text.UTF8Encoding]::new($false))
+
+    $testFiles = @($utf8NoBom, $utf8Bom, $utf16Le, $ansiFile, $sampleCpp, $samplePy, $sampleJson, $sampleMd)
 
     foreach ($file in $testFiles) {
         $fileName = [System.IO.Path]::GetFileName($file)

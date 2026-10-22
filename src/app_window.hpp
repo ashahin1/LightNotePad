@@ -60,6 +60,7 @@ private:
     // View & Editing
     void ToggleWordWrap();
     void ToggleDarkMode();
+    void ToggleSyntaxHighlighting();
     void AdjustZoom(int delta);
     void ResetZoom();
     void InsertDateTime();
@@ -82,6 +83,7 @@ private:
     UINT m_dpi = 96;
     bool m_darkMode = false;
     bool m_wordWrap = true;
+    bool m_syntaxHighlighting = true;
     HFONT m_hEditorFont = nullptr;
     HFONT m_hMenuFont = nullptr;
     int m_editorFontSizePt = 11;

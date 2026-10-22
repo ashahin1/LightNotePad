@@ -108,5 +108,13 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
+# 5. Test Syntax Highlighting Tokenizer Line-Endings (\r, \n, \r\n)
+Write-Host "`n5. Testing Syntax Highlighting Tokenizer Line-Endings..."
+& powershell -ExecutionPolicy Bypass -File "$PSScriptRoot\run_tokenizer_test.ps1"
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Tokenizer line-ending tests failed!"
+    exit 1
+}
+
 Write-Host "`nAll LightNotePad verification tests passed successfully!" -ForegroundColor Green
 exit 0

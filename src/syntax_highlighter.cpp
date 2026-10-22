@@ -110,6 +110,19 @@ inline bool IsDigit(wchar_t c) {
     return c >= L'0' && c <= L'9';
 }
 
+inline size_t FindEndOfLine(std::wstring_view text, size_t pos) {
+    for (size_t i = pos; i < text.size(); ++i) {
+        if (text[i] == L'\r' || text[i] == L'\n') {
+            return i;
+        }
+    }
+    return std::wstring_view::npos;
+}
+
+inline bool IsAtLineStart(std::wstring_view text, size_t i) {
+    return (i == 0 || text[i - 1] == L'\r' || text[i - 1] == L'\n');
+}
+
 } // namespace
 
 SyntaxLanguage SyntaxHighlighter::DetectLanguage(const std::wstring& filePath) {
@@ -241,8 +254,8 @@ void SyntaxHighlighter::Tokenize(
 
         // Markdown special parsing
         if (lang == SyntaxLanguage::Markdown) {
-            if (c == L'#' && (i == 0 || text[i - 1] == L'\n')) {
-                size_t eol = text.find(L'\n', i);
+            if (c == L'#' && IsAtLineStart(text, i)) {
+                size_t eol = FindEndOfLine(text, i);
                 if (eol == std::wstring_view::npos) eol = len;
                 outSpans.push_back({ baseCp + static_cast<long>(i), baseCp + static_cast<long>(eol), SyntaxTokenType::Keyword });
                 i = eol;
@@ -256,8 +269,8 @@ void SyntaxHighlighter::Tokenize(
                     continue;
                 }
             }
-            if (c == L'>' && (i == 0 || text[i - 1] == L'\n')) {
-                size_t eol = text.find(L'\n', i);
+            if (c == L'>' && IsAtLineStart(text, i)) {
+                size_t eol = FindEndOfLine(text, i);
                 if (eol == std::wstring_view::npos) eol = len;
                 outSpans.push_back({ baseCp + static_cast<long>(i), baseCp + static_cast<long>(eol), SyntaxTokenType::Comment });
                 i = eol;
@@ -269,8 +282,9 @@ void SyntaxHighlighter::Tokenize(
         if ((c == L'/' && i + 1 < len && text[i + 1] == L'/') ||
             (c == L'#' && (lang == SyntaxLanguage::Python || lang == SyntaxLanguage::Config || lang == SyntaxLanguage::Script)) ||
             (c == L';' && lang == SyntaxLanguage::Config) ||
-            (c == L'-' && i + 1 < len && text[i + 1] == L'-' && lang == SyntaxLanguage::Script)) {
-            size_t eol = text.find(L'\n', i);
+            (c == L'-' && i + 1 < len && text[i + 1] == L'-' && lang == SyntaxLanguage::Script) ||
+            (c == L':' && i + 1 < len && text[i + 1] == L':' && lang == SyntaxLanguage::Script)) {
+            size_t eol = FindEndOfLine(text, i);
             if (eol == std::wstring_view::npos) eol = len;
             outSpans.push_back({ baseCp + static_cast<long>(i), baseCp + static_cast<long>(eol), SyntaxTokenType::Comment });
             i = eol;
@@ -315,7 +329,7 @@ void SyntaxHighlighter::Tokenize(
                     ++i;
                     break;
                 }
-                if (text[i] == L'\n' && quote != L'`') {
+                if ((text[i] == L'\r' || text[i] == L'\n') && quote != L'`') {
                     break; // unclosed single-line string
                 }
                 ++i;

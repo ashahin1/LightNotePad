@@ -197,6 +197,7 @@ void AppWindow::CreateAppMenu() {
     AppendMenuW(hFileMenu, MF_STRING, IDM_FILE_PRINT, L"Print...\tCtrl+P");
     AppendMenuW(hFileMenu, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(hFileMenu, MF_STRING, IDM_FILE_CLOSETAB, L"Close Tab\tCtrl+W");
+    AppendMenuW(hFileMenu, MF_STRING, IDM_TAB_REOPEN_CLOSED, L"Reopen Closed Tab\tCtrl+Shift+T");
     AppendMenuW(hFileMenu, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(hFileMenu, MF_STRING, IDM_FILE_EXIT, L"Exit\tAlt+F4");
     AppendMenuW(m_hMenu, MF_POPUP, reinterpret_cast<UINT_PTR>(hFileMenu), L"&File");
@@ -258,6 +259,7 @@ void AppWindow::CreateAccelerators() {
         { FCONTROL | FSHIFT | FVIRTKEY, 'S', IDM_FILE_SAVEAS },
         { FCONTROL | FVIRTKEY, 'P', IDM_FILE_PRINT },
         { FCONTROL | FVIRTKEY, 'W', IDM_FILE_CLOSETAB },
+        { FCONTROL | FSHIFT | FVIRTKEY, 'T', IDM_TAB_REOPEN_CLOSED },
 
         { FCONTROL | FVIRTKEY, 'Z', IDM_EDIT_UNDO },
         { FCONTROL | FVIRTKEY, 'Y', IDM_EDIT_REDO },
@@ -373,6 +375,8 @@ bool AppWindow::CloseTab(int tabId) {
         return false;
     }
 
+    RecordClosedTab(tab);
+
     m_tabBar.RemoveTab(tabId);
 
     auto it = std::find_if(m_tabs.begin(), m_tabs.end(), [tabId](const auto& t) { return t->GetTabId() == tabId; });
@@ -389,6 +393,248 @@ bool AppWindow::CloseTab(int tabId) {
 
     UpdateLayout();
     return true;
+}
+
+void AppWindow::RecordClosedTab(EditorTab* tab) {
+    if (!tab || tab->GetFilePath().empty()) {
+        return;
+    }
+    ClosedTabState state;
+    state.filePath = tab->GetFilePath();
+    state.zoomPercent = tab->GetZoom();
+    state.encoding = tab->GetEncoding();
+    HWND hEdit = tab->GetEditHwnd();
+    if (hEdit) {
+        SendMessage(hEdit, EM_EXGETSEL, 0, reinterpret_cast<LPARAM>(&state.selection));
+        SendMessage(hEdit, EM_GETSCROLLPOS, 0, reinterpret_cast<LPARAM>(&state.scrollPos));
+    }
+    m_closedTabsHistory.push_back(std::move(state));
+    if (m_closedTabsHistory.size() > 50) {
+        m_closedTabsHistory.erase(m_closedTabsHistory.begin());
+    }
+}
+
+void AppWindow::ReopenClosedTab() {
+    if (m_closedTabsHistory.empty()) {
+        return;
+    }
+    ClosedTabState state = std::move(m_closedTabsHistory.back());
+    m_closedTabsHistory.pop_back();
+
+    if (state.filePath.empty()) {
+        return;
+    }
+
+    EditorTab* active = GetActiveTab();
+    EditorTab* openedTab = nullptr;
+    if (m_tabs.size() == 1 && active && active->GetFilePath().empty() && !active->IsDirty()) {
+        if (active->OpenFile(state.filePath)) {
+            openedTab = active;
+            m_tabBar.UpdateTab(active->GetTabId(), active->GetFileName(), active->IsDirty());
+        }
+    } else {
+        openedTab = CreateNewTab(state.filePath);
+    }
+
+    if (openedTab) {
+        AddRecentFile(state.filePath);
+        openedTab->SetZoom(state.zoomPercent);
+        HWND hEdit = openedTab->GetEditHwnd();
+        if (hEdit) {
+            SendMessage(hEdit, EM_EXSETSEL, 0, reinterpret_cast<LPARAM>(&state.selection));
+            SendMessage(hEdit, EM_SETSCROLLPOS, 0, reinterpret_cast<LPARAM>(&state.scrollPos));
+        }
+        UpdateWindowTitle();
+        UpdateLayout();
+    }
+}
+
+bool AppWindow::CloseOtherTabs(size_t keepIndex) {
+    if (keepIndex >= m_tabs.size() || m_tabs.size() <= 1) {
+        return false;
+    }
+
+    size_t activeIdx = 0;
+    bool res = TabStripHelper::CloseOtherTabs(
+        m_tabs,
+        activeIdx,
+        keepIndex,
+        [this](size_t, std::unique_ptr<EditorTab>& tab) {
+            return PromptSaveIfDirty(tab.get());
+        },
+        [this](size_t, std::unique_ptr<EditorTab>& tab) {
+            RecordClosedTab(tab.get());
+        }
+    );
+    if (!res) {
+        return false;
+    }
+
+    int keptId = m_tabs[0]->GetTabId();
+    m_tabBar.ClearTabs();
+    m_tabBar.AddTab(keptId, m_tabs[0]->GetFileName());
+    m_tabBar.UpdateTab(keptId, m_tabs[0]->GetFileName(), m_tabs[0]->IsDirty());
+
+    SwitchToTab(keptId);
+    UpdateLayout();
+    UpdateWindowTitle();
+    return true;
+}
+
+bool AppWindow::CloseTabsToTheRight(size_t index) {
+    if (index + 1 >= m_tabs.size()) {
+        return false;
+    }
+
+    size_t activeIdx = 0;
+    for (size_t i = 0; i < m_tabs.size(); ++i) {
+        if (m_tabs[i]->GetTabId() == m_activeTabId) {
+            activeIdx = i;
+            break;
+        }
+    }
+
+    std::vector<int> removeIds;
+    for (size_t i = index + 1; i < m_tabs.size(); ++i) {
+        removeIds.push_back(m_tabs[i]->GetTabId());
+    }
+
+    bool res = TabStripHelper::CloseTabsToTheRight(
+        m_tabs,
+        activeIdx,
+        index,
+        [this](size_t, std::unique_ptr<EditorTab>& tab) {
+            return PromptSaveIfDirty(tab.get());
+        },
+        [this](size_t, std::unique_ptr<EditorTab>& tab) {
+            RecordClosedTab(tab.get());
+        }
+    );
+    if (!res) {
+        return false;
+    }
+
+    for (int id : removeIds) {
+        m_tabBar.RemoveTab(id);
+    }
+
+    int newActiveId = m_tabs[activeIdx]->GetTabId();
+    SwitchToTab(newActiveId);
+    UpdateLayout();
+    UpdateWindowTitle();
+    return true;
+}
+
+void AppWindow::CopyTabFilePath(size_t targetIndex) {
+    if (targetIndex >= m_tabs.size()) return;
+    const std::wstring& path = m_tabs[targetIndex]->GetFilePath();
+    if (path.empty()) return;
+
+    wchar_t fullPath[MAX_PATH * 2] = {};
+    const wchar_t* pathToCopy = path.c_str();
+    if (GetFullPathNameW(path.c_str(), MAX_PATH * 2, fullPath, nullptr) > 0) {
+        pathToCopy = fullPath;
+    }
+
+    if (!OpenClipboard(m_hWnd)) return;
+    EmptyClipboard();
+
+    size_t charCount = wcslen(pathToCopy) + 1;
+    size_t bytes = charCount * sizeof(wchar_t);
+    HGLOBAL hMem = GlobalAlloc(GMEM_MOVEABLE, bytes);
+    if (hMem) {
+        void* pMem = GlobalLock(hMem);
+        if (pMem) {
+            memcpy(pMem, pathToCopy, bytes);
+            GlobalUnlock(hMem);
+            SetClipboardData(CF_UNICODETEXT, hMem);
+        } else {
+            GlobalFree(hMem);
+        }
+    }
+    CloseClipboard();
+}
+
+void AppWindow::OpenTabContainingFolder(size_t targetIndex) {
+    if (targetIndex >= m_tabs.size()) return;
+    const std::wstring& filePath = m_tabs[targetIndex]->GetFilePath();
+    if (filePath.empty()) return;
+
+    std::wstring params = L"/select,\"" + filePath + L"\"";
+    ShellExecuteW(nullptr, L"open", L"explorer.exe", params.c_str(), nullptr, SW_SHOWNORMAL);
+}
+
+void AppWindow::ShowTabContextMenu(size_t targetIndex, POINT ptScreen) {
+    if (targetIndex >= m_tabs.size()) return;
+
+    bool hasFile = !m_tabs[targetIndex]->GetFilePath().empty();
+    bool hasClosedHistory = !m_closedTabsHistory.empty();
+
+    TabContextMenuFlags flags = TabStripHelper::ComputeMenuFlags(
+        targetIndex,
+        m_tabs.size(),
+        hasFile,
+        hasClosedHistory
+    );
+
+    HMENU hMenu = CreatePopupMenu();
+    if (!hMenu) return;
+
+    UINT flagClose = flags.closeTab ? MF_ENABLED : MF_GRAYED;
+    UINT flagCloseOthers = flags.closeOtherTabs ? MF_ENABLED : MF_GRAYED;
+    UINT flagCloseRight = flags.closeTabsToTheRight ? MF_ENABLED : MF_GRAYED;
+    UINT flagReopen = flags.reopenClosedTab ? MF_ENABLED : MF_GRAYED;
+    UINT flagCopyPath = flags.copyFilePath ? MF_ENABLED : MF_GRAYED;
+    UINT flagOpenFolder = flags.openContainingFolder ? MF_ENABLED : MF_GRAYED;
+
+    AppendMenuW(hMenu, MF_STRING | flagClose, IDM_TAB_CLOSE, L"Close Tab\tCtrl+W");
+    AppendMenuW(hMenu, MF_STRING | flagCloseOthers, IDM_TAB_CLOSE_OTHERS, L"Close Other Tabs");
+    AppendMenuW(hMenu, MF_STRING | flagCloseRight, IDM_TAB_CLOSE_RIGHT, L"Close Tabs to the Right");
+    AppendMenuW(hMenu, MF_SEPARATOR, 0, nullptr);
+    AppendMenuW(hMenu, MF_STRING | flagReopen, IDM_TAB_REOPEN_CLOSED, L"Reopen Closed Tab\tCtrl+Shift+T");
+    AppendMenuW(hMenu, MF_SEPARATOR, 0, nullptr);
+    AppendMenuW(hMenu, MF_STRING | flagCopyPath, IDM_TAB_COPY_PATH, L"Copy File Path");
+    AppendMenuW(hMenu, MF_STRING | flagOpenFolder, IDM_TAB_OPEN_FOLDER, L"Open Containing Folder");
+
+    SetForegroundWindow(m_hWnd);
+
+    UINT cmd = TrackPopupMenuEx(
+        hMenu,
+        TPM_RETURNCMD | TPM_RIGHTBUTTON | TPM_NONOTIFY,
+        ptScreen.x,
+        ptScreen.y,
+        m_hWnd,
+        nullptr
+    );
+
+    DestroyMenu(hMenu);
+
+    if (cmd == 0) return;
+
+    if (targetIndex >= m_tabs.size()) return;
+
+    switch (cmd) {
+    case IDM_TAB_CLOSE:
+        CloseTab(m_tabs[targetIndex]->GetTabId());
+        break;
+    case IDM_TAB_CLOSE_OTHERS:
+        CloseOtherTabs(targetIndex);
+        break;
+    case IDM_TAB_CLOSE_RIGHT:
+        CloseTabsToTheRight(targetIndex);
+        break;
+    case IDM_TAB_REOPEN_CLOSED:
+        ReopenClosedTab();
+        break;
+    case IDM_TAB_COPY_PATH:
+        CopyTabFilePath(targetIndex);
+        break;
+    case IDM_TAB_OPEN_FOLDER:
+        OpenTabContainingFolder(targetIndex);
+        break;
+    default:
+        break;
+    }
 }
 
 void AppWindow::UpdateLayout() {
@@ -1186,6 +1432,15 @@ bool AppWindow::Create(HINSTANCE hInstance, int nCmdShow, const std::vector<std:
     m_tabBar.onTabSelected = [this](int id) { SwitchToTab(id); };
     m_tabBar.onTabCloseRequested = [this](int id) { CloseTab(id); };
     m_tabBar.onNewTabRequested = [this]() { CreateNewTab(); };
+    m_tabBar.onTabContextMenu = [this](size_t targetIndex, int targetTabId, POINT ptScreen) {
+        for (size_t i = 0; i < m_tabs.size(); ++i) {
+            if (m_tabs[i]->GetTabId() == targetTabId) {
+                targetIndex = i;
+                break;
+            }
+        }
+        ShowTabContextMenu(targetIndex, ptScreen);
+    };
 
     InitDarkMode();
 
@@ -1322,6 +1577,11 @@ LRESULT AppWindow::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
         if (active) active->SetFocus();
         return 0;
     }
+    case WM_INITMENUPOPUP: {
+        HMENU hPopup = reinterpret_cast<HMENU>(wParam);
+        EnableMenuItem(hPopup, IDM_TAB_REOPEN_CLOSED, m_closedTabsHistory.empty() ? (MF_BYCOMMAND | MF_GRAYED) : (MF_BYCOMMAND | MF_ENABLED));
+        break;
+    }
     case WM_COMMAND: {
         WORD code = HIWORD(wParam);
         WORD id = LOWORD(wParam);
@@ -1364,6 +1624,9 @@ LRESULT AppWindow::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
             if (active) CloseTab(active->GetTabId());
             break;
         }
+        case IDM_TAB_REOPEN_CLOSED:
+            ReopenClosedTab();
+            break;
         case IDM_FILE_EXIT:       SendMessage(m_hWnd, WM_CLOSE, 0, 0); break;
 
         case IDM_EDIT_UNDO:       { EditorTab* a = GetActiveTab(); if (a) a->Undo(); break; }
@@ -1457,6 +1720,24 @@ LRESULT AppWindow::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
         }
         DragFinish(hDrop);
         return 0;
+    }
+    case WM_CONTEXTMENU: {
+        POINT ptScreen = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+        if (ptScreen.x != -1 || ptScreen.y != -1) {
+            POINT ptClient = ptScreen;
+            ScreenToClient(m_hWnd, &ptClient);
+            int tabHeight = m_tabBar.GetDesiredHeight(m_dpi);
+            if (ptClient.y >= 0 && ptClient.y <= tabHeight) {
+                POINT ptTabClient = ptScreen;
+                ScreenToClient(m_tabBar.GetHwnd(), &ptTabClient);
+                int hit = m_tabBar.HitTestTab(ptTabClient);
+                if (hit >= 0 && hit < static_cast<int>(m_tabs.size())) {
+                    ShowTabContextMenu(static_cast<size_t>(hit), ptScreen);
+                    return 0;
+                }
+            }
+        }
+        break;
     }
     case WM_CLOSE: {
         // Prompt save for any dirty tabs

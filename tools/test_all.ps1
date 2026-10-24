@@ -124,5 +124,13 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
+# 7. Test Tab Strip Context Menu & Batch Operations
+Write-Host "`n7. Testing Tab Strip Context Menu & Batch Operations..."
+& powershell -ExecutionPolicy Bypass -File "$PSScriptRoot\run_tab_strip_test.ps1"
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Tab strip verification tests failed!"
+    exit 1
+}
+
 Write-Host "`nAll LightNotePad verification tests passed successfully!" -ForegroundColor Green
 exit 0

@@ -44,6 +44,8 @@ Measured on Windows 11 (64-bit):
 
 ### 📑 Smart Tabs & Minimalist Canvas
 * **Dynamic Auto-Hiding Tab Bar**: When only 1 file is open, the tab bar collapses completely (0 px height) for the classic, distraction-free Notepad canvas. When 2+ files are opened, a sleek tab bar automatically appears.
+* **Native Context Menu**: Right-click any tab header to access modern context actions: **Close Tab** (`Ctrl+W`), **Close Other Tabs**, **Close Tabs to the Right**, **Reopen Closed Tab** (`Ctrl+Shift+T`), **Copy File Path**, and **Open Containing Folder** (launches Explorer with file selected).
+* **Closed-Tabs History & State Recovery**: Maintains a LIFO closed-tabs history stack restoring caret selection, scroll position, and zoom level upon reopen.
 * **Tab Management**: Includes active tab accents, close buttons (`×`), middle-click tab closing, and a quick new tab (`+`) button.
 * **Smart Single-Instance & Multi-Window**: Opening files from Windows Explorer forwards them into tabs in the active window (`WM_COPYDATA`). Press `Ctrl+Shift+N` (or pass `--new-window`) to spawn a completely independent window instance.
 
@@ -130,6 +132,7 @@ LightNotePad.exe /unregister /silent
 | `Ctrl + Shift + S` | Save As |
 | `Ctrl + P` | Print Document |
 | `Ctrl + W` | Close Tab |
+| `Ctrl + Shift + T` | Reopen Closed Tab |
 | `Ctrl + Tab` / `Ctrl + Shift + Tab` | Next / Previous Tab |
 | `Ctrl + F` | Find |
 | `F3` / `Shift + F3` | Find Next / Find Previous |

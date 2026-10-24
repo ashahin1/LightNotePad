@@ -43,6 +43,13 @@
 #define IDM_HELP_ABOUT          250
 #define IDM_HELP_SHORTCUTS      251
 
+#define IDM_TAB_CLOSE           260
+#define IDM_TAB_CLOSE_OTHERS    261
+#define IDM_TAB_CLOSE_RIGHT     262
+#define IDM_TAB_REOPEN_CLOSED   263
+#define IDM_TAB_COPY_PATH       264
+#define IDM_TAB_OPEN_FOLDER     265
+
 #define IDM_FILE_RECENT_FIRST   300
 #define IDM_FILE_RECENT_LAST    308
 #define IDM_FILE_RECENT_CLEAR   309

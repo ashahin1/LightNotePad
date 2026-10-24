@@ -129,6 +129,34 @@ void TabBar::SetActiveTab(int id) {
     if (m_hWnd) InvalidateRect(m_hWnd, nullptr, FALSE);
 }
 
+int TabBar::GetActiveTabIndex() const {
+    for (size_t i = 0; i < m_tabs.size(); ++i) {
+        if (m_tabs[i].id == m_activeTabId) {
+            return static_cast<int>(i);
+        }
+    }
+    return -1;
+}
+
+void TabBar::ClearTabs() {
+    m_tabs.clear();
+    m_activeTabId = -1;
+    m_hoveredTabId = -1;
+    m_hoveredCloseTabId = -1;
+    m_hoverNewTab = false;
+    RecalculateLayout();
+    if (m_hWnd) InvalidateRect(m_hWnd, nullptr, FALSE);
+}
+
+int TabBar::HitTestTab(POINT ptClient) const {
+    for (size_t i = 0; i < m_tabs.size(); ++i) {
+        if (PtInRect(&m_tabs[i].rect, ptClient)) {
+            return static_cast<int>(i);
+        }
+    }
+    return -1;
+}
+
 void TabBar::RecalculateLayout() {
     if (!m_hWnd) return;
 
@@ -373,6 +401,39 @@ LRESULT TabBar::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
             }
         }
         return 0;
+    }
+    case WM_RBUTTONUP: {
+        POINT pt = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+        int hit = HitTestTab(pt);
+        if (hit >= 0 && hit < static_cast<int>(m_tabs.size())) {
+            POINT ptScreen = pt;
+            ClientToScreen(m_hWnd, &ptScreen);
+            if (onTabContextMenu) {
+                onTabContextMenu(static_cast<size_t>(hit), m_tabs[hit].id, ptScreen);
+            }
+            return 0;
+        }
+        break;
+    }
+    case WM_CONTEXTMENU: {
+        POINT ptScreen = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+        if (ptScreen.x == -1 && ptScreen.y == -1) {
+            // Keyboard activation (Shift+F10 or VK_APPS / Menu key)
+            int activeIdx = GetActiveTabIndex();
+            if (activeIdx >= 0 && activeIdx < static_cast<int>(m_tabs.size())) {
+                POINT ptClient = {
+                    (m_tabs[activeIdx].rect.left + m_tabs[activeIdx].rect.right) / 2,
+                    (m_tabs[activeIdx].rect.top + m_tabs[activeIdx].rect.bottom) / 2
+                };
+                ptScreen = ptClient;
+                ClientToScreen(m_hWnd, &ptScreen);
+                if (onTabContextMenu) {
+                    onTabContextMenu(static_cast<size_t>(activeIdx), m_tabs[activeIdx].id, ptScreen);
+                }
+                return 0;
+            }
+        }
+        break;
     }
     }
     return DefWindowProcW(m_hWnd, msg, wParam, lParam);

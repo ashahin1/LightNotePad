@@ -27,7 +27,10 @@ public:
     void UpdateTab(int id, const std::wstring& title, bool isDirty);
     void SetActiveTab(int id);
     int GetActiveTab() const { return m_activeTabId; }
+    int GetActiveTabIndex() const;
     size_t GetTabCount() const { return m_tabs.size(); }
+    void ClearTabs();
+    int HitTestTab(POINT ptClient) const;
 
     void ApplyTheme(bool darkMode);
     void SetDpi(UINT dpi);
@@ -36,6 +39,7 @@ public:
     std::function<void(int tabId)> onTabSelected;
     std::function<void(int tabId)> onTabCloseRequested;
     std::function<void()> onNewTabRequested;
+    std::function<void(size_t tabIndex, int tabId, POINT ptScreen)> onTabContextMenu;
 
 private:
     static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);

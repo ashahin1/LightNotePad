@@ -4,6 +4,15 @@
 #include "tab_bar.hpp"
 #include "status_bar.hpp"
 #include "resource_ids.hpp"
+#include "tab_strip_helper.hpp"
+
+struct ClosedTabState {
+    std::wstring filePath;
+    CHARRANGE selection = { 0, 0 };
+    POINT scrollPos = { 0, 0 };
+    int zoomPercent = 100;
+    FileEncoding encoding = FileEncoding::UTF8;
+};
 
 class AppWindow {
 public:
@@ -34,6 +43,13 @@ private:
     // Tab Management
     EditorTab* CreateNewTab(const std::wstring& filePath = L"");
     bool CloseTab(int tabId);
+    bool CloseOtherTabs(size_t keepIndex);
+    bool CloseTabsToTheRight(size_t index);
+    void ReopenClosedTab();
+    void CopyTabFilePath(size_t targetIndex);
+    void OpenTabContainingFolder(size_t targetIndex);
+    void ShowTabContextMenu(size_t targetIndex, POINT ptScreen);
+    void RecordClosedTab(EditorTab* tab);
     void SwitchToTab(int tabId);
     EditorTab* GetActiveTab() const;
     EditorTab* FindTab(int tabId) const;
@@ -92,6 +108,7 @@ private:
     std::wstring m_fontFamily = L"Cascadia Mono";
 
     std::vector<std::wstring> m_recentFiles;
+    std::vector<ClosedTabState> m_closedTabsHistory;
 
     // UI Sub-components
     TabBar m_tabBar;

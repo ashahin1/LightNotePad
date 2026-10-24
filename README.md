@@ -7,7 +7,7 @@
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://isocpp.org/)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-0078D6.svg)](https://www.microsoft.com/windows)
 [![Release](https://img.shields.io/github/v/release/ashahin1/LightNotePad?color=blue)](https://github.com/ashahin1/LightNotePad/releases)
-[![Binary Size](https://img.shields.io/badge/Binary%20Size-285%20KB-brightgreen.svg)]()
+[![Binary Size](https://img.shields.io/badge/Binary%20Size-294%20KB-brightgreen.svg)]()
 [![RAM Usage](https://img.shields.io/badge/Private%20RAM-%3C%204%20MB-success.svg)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -24,7 +24,7 @@ Measured on Windows 11 (64-bit):
 
 | Metric | LightNotePad | Windows 11 Notepad (WinUI) | Difference |
 | :--- | :--- | :--- | :--- |
-| **Standalone Binary Size** | **285 KB** | ~50+ MB (Packaged App) | **>175× smaller** |
+| **Standalone Binary Size** | **294 KB** | ~50+ MB (Packaged App) | **>170× smaller** |
 | **Cold Startup Latency** | **~185 ms** | ~5,000 ms | **>25× faster** |
 | **Private Working Set RAM** | **3.5 MB** | 17.5 MB | **5× lower RAM** |
 | **External Runtime DLLs** | **0** (Native Win32 only) | Multiple WinRT/XAML packages | Zero bloat |

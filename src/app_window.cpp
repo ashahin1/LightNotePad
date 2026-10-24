@@ -1148,7 +1148,7 @@ void AppWindow::ReplaceInternal(bool all) {
 void AppWindow::ShowAboutDialog() {
     MessageBoxW(
         m_hWnd,
-        L"LightNotePad v1.0\n\n"
+        L"LightNotePad v1.2.0\n\n"
         L"A lightning-fast, minimalist Windows text editor.\n"
         L"Zero external runtime DLLs · Native Win32 · Pure C++20\n\n"
         L"Developed by Ahmed Amer Shahin",

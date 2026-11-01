@@ -132,5 +132,13 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
+# 8. Test Editor Area Context Menu & Web Search
+Write-Host "`n8. Testing Editor Area Context Menu & Web Search..."
+& powershell -ExecutionPolicy Bypass -File "$PSScriptRoot\run_editor_context_menu_test.ps1"
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Editor context menu verification tests failed!"
+    exit 1
+}
+
 Write-Host "`nAll LightNotePad verification tests passed successfully!" -ForegroundColor Green
 exit 0

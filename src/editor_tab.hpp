@@ -64,6 +64,8 @@ public:
     void SelectAll();
     void InsertText(const std::wstring& text);
 
+    void ShowContextMenu(POINT ptScreen);
+
 private:
     static LRESULT CALLBACK EditSubclassProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData);
 

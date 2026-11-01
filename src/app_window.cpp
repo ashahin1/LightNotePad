@@ -1036,6 +1036,25 @@ void AppWindow::OpenFindDialog(bool isReplace) {
         return;
     }
 
+    EditorTab* active = GetActiveTab();
+    if (active && active->GetEditHwnd()) {
+        CHARRANGE cr = {};
+        SendMessageW(active->GetEditHwnd(), EM_EXGETSEL, 0, reinterpret_cast<LPARAM>(&cr));
+        if (cr.cpMax > cr.cpMin && (cr.cpMax - cr.cpMin) < 256) {
+            TEXTRANGEW tr = {};
+            tr.chrg = cr;
+            tr.lpstrText = m_findWhat;
+            if (SendMessageW(active->GetEditHwnd(), EM_GETTEXTRANGE, 0, reinterpret_cast<LPARAM>(&tr)) > 0) {
+                for (wchar_t* p = m_findWhat; *p; ++p) {
+                    if (*p == L'\r' || *p == L'\n') {
+                        *p = L'\0';
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
     ZeroMemory(&m_fr, sizeof(m_fr));
     m_fr.lStructSize = sizeof(m_fr);
     m_fr.hwndOwner = m_hWnd;

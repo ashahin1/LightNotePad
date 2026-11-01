@@ -20,6 +20,7 @@
 #define IDM_EDIT_DELETE         215
 #define IDM_EDIT_SELECTALL      216
 #define IDM_EDIT_TIMEDATE       217
+#define IDM_EDIT_SEARCH_WEB     218
 
 #define IDM_SEARCH_FIND         220
 #define IDM_SEARCH_FINDNEXT     221

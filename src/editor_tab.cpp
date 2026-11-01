@@ -1,5 +1,7 @@
 #include "pch.hpp"
 #include "editor_tab.hpp"
+#include "resource_ids.hpp"
+#include "editor_context_menu_helper.hpp"
 
 namespace {
 // Stream callback for large text input
@@ -118,6 +120,42 @@ LRESULT CALLBACK EditorTab::EditSubclassProc(HWND hWnd, UINT uMsg, WPARAM wParam
             pTab->ColorizeViewport();
         }
         return res;
+    }
+    case WM_CONTEXTMENU: {
+        POINT ptScreen = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+        if (ptScreen.x == -1 && ptScreen.y == -1) {
+            // Keyboard invocation (Shift+F10 or VK_APPS / Menu key)
+            POINT ptClient = {};
+            if (GetCaretPos(&ptClient)) {
+                ptScreen = ptClient;
+                ClientToScreen(hWnd, &ptScreen);
+                ptScreen.y += 18; // Position below active line
+            } else {
+                RECT rcClient;
+                GetClientRect(hWnd, &rcClient);
+                ptScreen.x = (rcClient.left + rcClient.right) / 2;
+                ptScreen.y = (rcClient.top + rcClient.bottom) / 2;
+                ClientToScreen(hWnd, &ptScreen);
+            }
+        } else {
+            // Mouse right-click
+            POINT ptClient = ptScreen;
+            ScreenToClient(hWnd, &ptClient);
+
+            CHARRANGE cr = {};
+            SendMessageW(hWnd, EM_EXGETSEL, 0, reinterpret_cast<LPARAM>(&cr));
+
+            POINTL ptl = { ptClient.x, ptClient.y };
+            LRESULT charPos = SendMessageW(hWnd, EM_CHARFROMPOS, 0, reinterpret_cast<LPARAM>(&ptl));
+
+            if (charPos >= 0 && (charPos < cr.cpMin || charPos >= cr.cpMax)) {
+                // Clicked outside active selection -> move caret to clicked character
+                SendMessageW(hWnd, EM_SETSEL, charPos, charPos);
+            }
+        }
+
+        pTab->ShowContextMenu(ptScreen);
+        return 0; // Completely bypass default RichEdit context menu
     }
     case WM_NCDESTROY: {
         RemoveWindowSubclass(hWnd, EditSubclassProc, uIdSubclass);
@@ -528,5 +566,107 @@ void EditorTab::OnTextChanged() {
         SendMessageW(m_hEdit, EM_EXGETSEL, 0, reinterpret_cast<LPARAM>(&cr));
         LRESULT activeLine = SendMessageW(m_hEdit, EM_EXLINEFROMCHAR, 0, cr.cpMin);
         ColorizeRange(static_cast<long>(activeLine), static_cast<long>(activeLine));
+    }
+}
+
+void EditorTab::ShowContextMenu(POINT ptScreen) {
+    if (!m_hEdit) return;
+
+    bool canUndo = (SendMessageW(m_hEdit, EM_CANUNDO, 0, 0) != 0);
+    bool canRedo = (SendMessageW(m_hEdit, EM_CANREDO, 0, 0) != 0);
+
+    CHARRANGE cr = {};
+    SendMessageW(m_hEdit, EM_EXGETSEL, 0, reinterpret_cast<LPARAM>(&cr));
+    bool hasSelection = (cr.cpMax > cr.cpMin);
+
+    bool hasClipboardText = (IsClipboardFormatAvailable(CF_UNICODETEXT) != FALSE);
+    size_t textLen = static_cast<size_t>(GetWindowTextLengthW(m_hEdit));
+
+    // Get selected text for web search (capped at 256 characters)
+    std::wstring selectedText;
+    if (hasSelection) {
+        wchar_t buf[257] = {};
+        TEXTRANGEW tr = {};
+        tr.chrg.cpMin = cr.cpMin;
+        tr.chrg.cpMax = (cr.cpMax - cr.cpMin > 256) ? (cr.cpMin + 256) : cr.cpMax;
+        tr.lpstrText = buf;
+        if (SendMessageW(m_hEdit, EM_GETTEXTRANGE, 0, reinterpret_cast<LPARAM>(&tr)) > 0) {
+            selectedText = buf;
+        }
+    }
+
+    EditorContextMenuFlags flags = EditorContextMenuHelper::ComputeMenuFlags(
+        canUndo,
+        canRedo,
+        hasSelection,
+        hasClipboardText,
+        textLen,
+        m_wordWrap
+    );
+
+    HMENU hMenu = CreatePopupMenu();
+    if (!hMenu) return;
+
+    UINT flagUndo = flags.canUndo ? MF_ENABLED : MF_GRAYED;
+    UINT flagRedo = flags.canRedo ? MF_ENABLED : MF_GRAYED;
+    UINT flagCut = flags.canCut ? MF_ENABLED : MF_GRAYED;
+    UINT flagCopy = flags.canCopy ? MF_ENABLED : MF_GRAYED;
+    UINT flagPaste = flags.canPaste ? MF_ENABLED : MF_GRAYED;
+    UINT flagDelete = flags.canDelete ? MF_ENABLED : MF_GRAYED;
+    UINT flagSelectAll = flags.canSelectAll ? MF_ENABLED : MF_GRAYED;
+    UINT flagSearchWeb = flags.canSearchWeb ? MF_ENABLED : MF_GRAYED;
+    UINT flagWordWrap = MF_ENABLED | (flags.isWordWrap ? MF_CHECKED : MF_UNCHECKED);
+
+    std::wstring searchLabel = EditorContextMenuHelper::FormatSearchWebLabel(selectedText);
+
+    struct ContextMenuItem {
+        UINT flags;
+        UINT_PTR id;
+        const wchar_t* text;
+    };
+    const ContextMenuItem items[] = {
+        { MF_STRING | flagUndo, IDM_EDIT_UNDO, L"Undo\tCtrl+Z" },
+        { MF_STRING | flagRedo, IDM_EDIT_REDO, L"Redo\tCtrl+Y" },
+        { MF_SEPARATOR, 0, nullptr },
+        { MF_STRING | flagCut, IDM_EDIT_CUT, L"Cut\tCtrl+X" },
+        { MF_STRING | flagCopy, IDM_EDIT_COPY, L"Copy\tCtrl+C" },
+        { MF_STRING | flagPaste, IDM_EDIT_PASTE, L"Paste\tCtrl+V" },
+        { MF_STRING | flagDelete, IDM_EDIT_DELETE, L"Delete\tDel" },
+        { MF_SEPARATOR, 0, nullptr },
+        { MF_STRING | flagSelectAll, IDM_EDIT_SELECTALL, L"Select All\tCtrl+A" },
+        { MF_SEPARATOR, 0, nullptr },
+        { MF_STRING | flagSearchWeb, IDM_EDIT_SEARCH_WEB, searchLabel.c_str() },
+        { MF_STRING, IDM_SEARCH_FIND, L"Find...\tCtrl+F" },
+        { MF_STRING, IDM_SEARCH_REPLACE, L"Replace...\tCtrl+H" },
+        { MF_SEPARATOR, 0, nullptr },
+        { MF_STRING | flagWordWrap, IDM_VIEW_WORDWRAP, L"Word Wrap\tAlt+Z" }
+    };
+
+    for (const auto& item : items) {
+        AppendMenuW(hMenu, item.flags, item.id, item.text);
+    }
+
+    SetForegroundWindow(m_hParent);
+
+    UINT cmd = TrackPopupMenuEx(
+        hMenu,
+        TPM_RETURNCMD | TPM_RIGHTBUTTON | TPM_NONOTIFY,
+        ptScreen.x,
+        ptScreen.y,
+        m_hParent,
+        nullptr
+    );
+
+    DestroyMenu(hMenu);
+
+    if (cmd == 0) return;
+
+    if (cmd == IDM_EDIT_SEARCH_WEB) {
+        if (!selectedText.empty()) {
+            std::wstring url = EditorContextMenuHelper::BuildSearchWebUrl(selectedText);
+            ShellExecuteW(nullptr, L"open", url.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+        }
+    } else {
+        SendMessageW(m_hParent, WM_COMMAND, MAKEWPARAM(cmd, 0), 0);
     }
 }

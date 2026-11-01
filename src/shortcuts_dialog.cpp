@@ -81,13 +81,15 @@ void ShortcutsDialog::Show(HWND hParent, HINSTANCE hInstance, bool darkMode, UIN
     wc.lpszClassName = SHORTCUTS_CLASS_NAME;
     RegisterClassExW(&wc);
 
-    int width = MulDiv(780, dpi, 96);
-    int height = MulDiv(550, dpi, 96);
+    int width = MulDiv(800, dpi, 96);
+    int height = MulDiv(560, dpi, 96);
 
     RECT rcParent;
     GetWindowRect(hParent, &rcParent);
     int posX = rcParent.left + (rcParent.right - rcParent.left - width) / 2;
     int posY = rcParent.top + (rcParent.bottom - rcParent.top - height) / 2;
+    if (posX < 0) posX = 10;
+    if (posY < 0) posY = 10;
 
     DialogData data;
     data.darkMode = darkMode;
@@ -193,54 +195,82 @@ LRESULT CALLBACK ShortcutsDialog::DialogProc(HWND hWnd, UINT msg, WPARAM wParam,
         RECT rcSub = { MulDiv(24, pData->dpi, 96), MulDiv(46, pData->dpi, 96), w, MulDiv(70, pData->dpi, 96) };
         DrawTextW(memDC, L"Press Esc or Enter to dismiss this window.", -1, &rcSub, DT_SINGLELINE | DT_LEFT | DT_NOPREFIX);
 
-        // Draw 2 Columns of Categories
+        // Draw 2 Columns of Categories:
+        // Left Column:  File Operations (8 items), Edit & Text (4 items) -> 12 items total
+        // Right Column: Search & Navigation (5 items), View & Zoom (5 items) -> 10 items total
+        const std::vector<size_t> columnCategories[2] = {
+            { 0, 1 }, // Left Column
+            { 2, 3 }  // Right Column
+        };
+
         int margin = MulDiv(24, pData->dpi, 96);
         int gap = MulDiv(16, pData->dpi, 96);
         int colWidth = (w - (margin * 2) - gap) / 2;
         int startY = MulDiv(75, pData->dpi, 96);
+        int lineH = MulDiv(25, pData->dpi, 96);
+        int topPad = MulDiv(38, pData->dpi, 96);
+        int bottomPad = MulDiv(10, pData->dpi, 96);
+        int keyBadgeWidth = MulDiv(168, pData->dpi, 96);
 
-        for (size_t catIdx = 0; catIdx < 4; ++catIdx) {
-            int col = static_cast<int>(catIdx % 2);
-            int row = static_cast<int>(catIdx / 2);
-
+        for (int col = 0; col < 2; ++col) {
             int x = margin + col * (colWidth + gap);
-            int y = startY + row * MulDiv(215, pData->dpi, 96);
-            int catHeight = MulDiv(205, pData->dpi, 96);
+            int curY = startY;
 
-            RECT rcCard = { x, y, x + colWidth, y + catHeight };
-            HBRUSH hBrCard = CreateSolidBrush(cardBg);
-            FillRect(memDC, &rcCard, hBrCard);
-            DeleteObject(hBrCard);
+            for (size_t catIdx : columnCategories[col]) {
+                if (catIdx >= _countof(g_categories)) continue;
+                const auto& category = g_categories[catIdx];
 
-            // Category title
-            SelectObject(memDC, pData->hFontHeader);
-            SetTextColor(memDC, textHdr);
-            RECT rcCatTitle = { x + MulDiv(14, pData->dpi, 96), y + MulDiv(10, pData->dpi, 96), x + colWidth, y + MulDiv(32, pData->dpi, 96) };
-            DrawTextW(memDC, g_categories[catIdx].title, -1, &rcCatTitle, DT_SINGLELINE | DT_LEFT | DT_NOPREFIX);
+                int catHeight = topPad + static_cast<int>(category.items.size()) * lineH + bottomPad;
 
-            // Items
-            int itemY = y + MulDiv(38, pData->dpi, 96);
-            int lineH = MulDiv(25, pData->dpi, 96);
-            int keyBadgeWidth = MulDiv(168, pData->dpi, 96);
+                RECT rcCard = { x, curY, x + colWidth, curY + catHeight };
+                HBRUSH hBrCard = CreateSolidBrush(cardBg);
+                FillRect(memDC, &rcCard, hBrCard);
+                DeleteObject(hBrCard);
 
-            for (const auto& item : g_categories[catIdx].items) {
-                // Key badge
-                RECT rcKey = { x + MulDiv(12, pData->dpi, 96), itemY, x + MulDiv(12, pData->dpi, 96) + keyBadgeWidth, itemY + lineH - 4 };
-                HBRUSH hBrKey = CreateSolidBrush(keyBg);
-                FillRect(memDC, &rcKey, hBrKey);
-                DeleteObject(hBrKey);
+                // Category title
+                SelectObject(memDC, pData->hFontHeader);
+                SetTextColor(memDC, textHdr);
+                RECT rcCatTitle = {
+                    x + MulDiv(14, pData->dpi, 96),
+                    curY + MulDiv(10, pData->dpi, 96),
+                    x + colWidth,
+                    curY + MulDiv(32, pData->dpi, 96)
+                };
+                DrawTextW(memDC, category.title, -1, &rcCatTitle, DT_SINGLELINE | DT_LEFT | DT_NOPREFIX);
 
-                SelectObject(memDC, pData->hFontKey);
-                SetTextColor(memDC, textKey);
-                DrawTextW(memDC, item.keys, -1, &rcKey, DT_SINGLELINE | DT_CENTER | DT_VCENTER | DT_NOPREFIX);
+                // Items
+                int itemY = curY + topPad;
+                for (const auto& item : category.items) {
+                    // Key badge
+                    RECT rcKey = {
+                        x + MulDiv(12, pData->dpi, 96),
+                        itemY,
+                        x + MulDiv(12, pData->dpi, 96) + keyBadgeWidth,
+                        itemY + lineH - 4
+                    };
+                    HBRUSH hBrKey = CreateSolidBrush(keyBg);
+                    FillRect(memDC, &rcKey, hBrKey);
+                    DeleteObject(hBrKey);
 
-                // Description
-                SelectObject(memDC, pData->hFontReg);
-                SetTextColor(memDC, textDesc);
-                RECT rcDesc = { rcKey.right + MulDiv(12, pData->dpi, 96), itemY, x + colWidth - MulDiv(10, pData->dpi, 96), itemY + lineH };
-                DrawTextW(memDC, item.desc, -1, &rcDesc, DT_SINGLELINE | DT_LEFT | DT_VCENTER | DT_NOPREFIX);
+                    SelectObject(memDC, pData->hFontKey);
+                    SetTextColor(memDC, textKey);
+                    DrawTextW(memDC, item.keys, -1, &rcKey, DT_SINGLELINE | DT_CENTER | DT_VCENTER | DT_NOPREFIX);
 
-                itemY += lineH;
+                    // Description
+                    SelectObject(memDC, pData->hFontReg);
+                    SetTextColor(memDC, textDesc);
+                    RECT rcDesc = {
+                        rcKey.right + MulDiv(12, pData->dpi, 96),
+                        itemY,
+                        x + colWidth - MulDiv(10, pData->dpi, 96),
+                        itemY + lineH
+                    };
+                    DrawTextW(memDC, item.desc, -1, &rcDesc, DT_SINGLELINE | DT_LEFT | DT_VCENTER | DT_NOPREFIX);
+
+                    itemY += lineH;
+                }
+
+                curY += catHeight + gap;
             }
         }
 

@@ -15,52 +15,49 @@ struct ShortcutItem {
 
 struct ShortcutCategory {
     const wchar_t* title;
-    std::vector<ShortcutItem> items;
+    const ShortcutItem* items;
+    size_t count;
+};
+
+const ShortcutItem g_fileItems[] = {
+    { L"Ctrl + N / T", L"New Tab" },
+    { L"Ctrl + Shift + N", L"New Window" },
+    { L"Ctrl + O", L"Open File" },
+    { L"Ctrl + S", L"Save" },
+    { L"Ctrl + Shift + S", L"Save As" },
+    { L"Ctrl + P", L"Print Document" },
+    { L"Ctrl + W", L"Close Tab" },
+    { L"Ctrl + Shift + T", L"Reopen Closed Tab" },
+};
+
+const ShortcutItem g_editItems[] = {
+    { L"Ctrl + Z / Y", L"Undo / Redo" },
+    { L"Ctrl + X / C / V", L"Cut / Copy / Paste" },
+    { L"Ctrl + A", L"Select All" },
+    { L"F5", L"Insert Time & Date" },
+};
+
+const ShortcutItem g_searchItems[] = {
+    { L"Ctrl + F", L"Find" },
+    { L"F3 / Shift + F3", L"Find Next / Previous" },
+    { L"Ctrl + H", L"Replace" },
+    { L"Ctrl + Tab", L"Next Tab" },
+    { L"Ctrl + Shift + Tab", L"Previous Tab" },
+};
+
+const ShortcutItem g_viewItems[] = {
+    { L"Alt + Z", L"Toggle Word Wrap" },
+    { L"Ctrl + Mouse Wheel", L"Zoom In / Out" },
+    { L"Ctrl + + / -", L"Zoom In / Out" },
+    { L"Ctrl + 0", L"Reset Zoom (100%)" },
+    { L"F1", L"Keyboard Shortcuts" },
 };
 
 const ShortcutCategory g_categories[] = {
-    {
-        L"File Operations",
-        {
-            { L"Ctrl + N / T", L"New Tab" },
-            { L"Ctrl + Shift + N", L"New Window" },
-            { L"Ctrl + O", L"Open File" },
-            { L"Ctrl + S", L"Save" },
-            { L"Ctrl + Shift + S", L"Save As" },
-            { L"Ctrl + P", L"Print Document" },
-            { L"Ctrl + W", L"Close Tab" },
-            { L"Ctrl + Shift + T", L"Reopen Closed Tab" },
-        }
-    },
-    {
-        L"Edit & Text",
-        {
-            { L"Ctrl + Z / Y", L"Undo / Redo" },
-            { L"Ctrl + X / C / V", L"Cut / Copy / Paste" },
-            { L"Ctrl + A", L"Select All" },
-            { L"F5", L"Insert Time & Date" },
-        }
-    },
-    {
-        L"Search & Navigation",
-        {
-            { L"Ctrl + F", L"Find" },
-            { L"F3 / Shift + F3", L"Find Next / Previous" },
-            { L"Ctrl + H", L"Replace" },
-            { L"Ctrl + Tab", L"Next Tab" },
-            { L"Ctrl + Shift + Tab", L"Previous Tab" },
-        }
-    },
-    {
-        L"View & Zoom",
-        {
-            { L"Alt + Z", L"Toggle Word Wrap" },
-            { L"Ctrl + Mouse Wheel", L"Zoom In / Out" },
-            { L"Ctrl + + / -", L"Zoom In / Out" },
-            { L"Ctrl + 0", L"Reset Zoom (100%)" },
-            { L"F1", L"Keyboard Shortcuts" },
-        }
-    }
+    { L"File Operations", g_fileItems, _countof(g_fileItems) },
+    { L"Edit & Text", g_editItems, _countof(g_editItems) },
+    { L"Search & Navigation", g_searchItems, _countof(g_searchItems) },
+    { L"View & Zoom", g_viewItems, _countof(g_viewItems) }
 };
 
 struct DialogData {
@@ -198,7 +195,7 @@ LRESULT CALLBACK ShortcutsDialog::DialogProc(HWND hWnd, UINT msg, WPARAM wParam,
         // Draw 2 Columns of Categories:
         // Left Column:  File Operations (8 items), Edit & Text (4 items) -> 12 items total
         // Right Column: Search & Navigation (5 items), View & Zoom (5 items) -> 10 items total
-        const std::vector<size_t> columnCategories[2] = {
+        const size_t columnCategories[2][2] = {
             { 0, 1 }, // Left Column
             { 2, 3 }  // Right Column
         };
@@ -220,7 +217,7 @@ LRESULT CALLBACK ShortcutsDialog::DialogProc(HWND hWnd, UINT msg, WPARAM wParam,
                 if (catIdx >= _countof(g_categories)) continue;
                 const auto& category = g_categories[catIdx];
 
-                int catHeight = topPad + static_cast<int>(category.items.size()) * lineH + bottomPad;
+                int catHeight = topPad + static_cast<int>(category.count) * lineH + bottomPad;
 
                 RECT rcCard = { x, curY, x + colWidth, curY + catHeight };
                 HBRUSH hBrCard = CreateSolidBrush(cardBg);
@@ -240,7 +237,8 @@ LRESULT CALLBACK ShortcutsDialog::DialogProc(HWND hWnd, UINT msg, WPARAM wParam,
 
                 // Items
                 int itemY = curY + topPad;
-                for (const auto& item : category.items) {
+                for (size_t itemIdx = 0; itemIdx < category.count; ++itemIdx) {
+                    const auto& item = category.items[itemIdx];
                     // Key badge
                     RECT rcKey = {
                         x + MulDiv(12, pData->dpi, 96),

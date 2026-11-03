@@ -53,9 +53,12 @@ private:
     void SwitchToTab(int tabId);
     EditorTab* GetActiveTab() const;
     EditorTab* FindTab(int tabId) const;
+    EditorTab* FindTabByPath(const std::wstring& filePath) const;
     bool PromptSaveIfDirty(EditorTab* tab);
 
     // File Operations
+    EditorTab* OpenOrActivateFile(const std::wstring& filePath);
+    static std::wstring NormalizePath(const std::wstring& path);
     void OpenFileDialog();
     bool SaveCurrentFile(bool saveAs = false);
     void PrintDocument();

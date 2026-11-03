@@ -2,6 +2,7 @@
 #include "app_window.hpp"
 #include "shortcuts_dialog.hpp"
 #include "supported_formats.hpp"
+#include "path_lookup_helper.hpp"
 
 #ifndef DWMWA_USE_IMMERSIVE_DARK_MODE
 #define DWMWA_USE_IMMERSIVE_DARK_MODE 20
@@ -320,6 +321,55 @@ EditorTab* AppWindow::FindTab(int tabId) const {
     return nullptr;
 }
 
+std::wstring AppWindow::NormalizePath(const std::wstring& path) {
+    return PathLookupHelper::NormalizePath(path);
+}
+
+EditorTab* AppWindow::FindTabByPath(const std::wstring& filePath) const {
+    if (filePath.empty()) return nullptr;
+
+    for (const auto& tab : m_tabs) {
+        if (tab->GetFilePath().empty()) continue;
+        if (PathLookupHelper::ArePathsEquivalent(filePath, tab->GetFilePath())) {
+            return tab.get();
+        }
+    }
+    return nullptr;
+}
+
+EditorTab* AppWindow::OpenOrActivateFile(const std::wstring& filePath) {
+    if (filePath.empty()) {
+        return nullptr;
+    }
+
+    // 1. If file is already open in an existing tab, activate it
+    EditorTab* existing = FindTabByPath(filePath);
+    if (existing) {
+        SwitchToTab(existing->GetTabId());
+        AddRecentFile(existing->GetFilePath());
+        return existing;
+    }
+
+    // 2. If the active tab is clean and untitled, reuse it
+    EditorTab* active = GetActiveTab();
+    if (active && active->GetFilePath().empty() && !active->IsDirty()) {
+        if (active->OpenFile(filePath)) {
+            UpdateWindowTitle();
+            UpdateLayout();
+            AddRecentFile(filePath);
+            return active;
+        }
+        return nullptr;
+    }
+
+    // 3. Otherwise, create a new tab
+    EditorTab* newTab = CreateNewTab(filePath);
+    if (newTab) {
+        AddRecentFile(filePath);
+    }
+    return newTab;
+}
+
 EditorTab* AppWindow::GetActiveTab() const {
     return FindTab(m_activeTabId);
 }
@@ -425,19 +475,14 @@ void AppWindow::ReopenClosedTab() {
         return;
     }
 
-    EditorTab* active = GetActiveTab();
-    EditorTab* openedTab = nullptr;
-    if (m_tabs.size() == 1 && active && active->GetFilePath().empty() && !active->IsDirty()) {
-        if (active->OpenFile(state.filePath)) {
-            openedTab = active;
-            m_tabBar.UpdateTab(active->GetTabId(), active->GetFileName(), active->IsDirty());
-        }
-    } else {
-        openedTab = CreateNewTab(state.filePath);
+    EditorTab* existing = FindTabByPath(state.filePath);
+    if (existing) {
+        SwitchToTab(existing->GetTabId());
+        return;
     }
 
+    EditorTab* openedTab = OpenOrActivateFile(state.filePath);
     if (openedTab) {
-        AddRecentFile(state.filePath);
         openedTab->SetZoom(state.zoomPercent);
         HWND hEdit = openedTab->GetEditHwnd();
         if (hEdit) {
@@ -689,31 +734,7 @@ void AppWindow::UpdateWindowTitle() {
 }
 
 void AppWindow::OpenFileDialog() {
-    // Build the filter string at runtime from the shared extension lists so it never drifts
-    // from what the app can actually open. Entries are "description\0pattern\0".
-    const std::wstring allPattern = SupportedFormats::BuildAllSupportedPattern();
-    const std::wstring textPattern = SupportedFormats::BuildPattern(SupportedFormats::kText);
-    const std::wstring mdPattern = SupportedFormats::BuildPattern(SupportedFormats::kMarkdown);
-    const std::wstring configPattern = SupportedFormats::BuildPattern(SupportedFormats::kConfig);
-    const std::wstring dataPattern = SupportedFormats::BuildPattern(SupportedFormats::kData);
-    const std::wstring codePattern = SupportedFormats::BuildPattern(SupportedFormats::kCode);
-
-    std::wstring filter;
-    auto addFilter = [&filter](const std::wstring& desc, const std::wstring& pattern) {
-        filter += desc;
-        filter.push_back(L'\0');
-        filter += pattern;
-        filter.push_back(L'\0');
-    };
-
-    addFilter(L"All Supported Documents", allPattern);
-    addFilter(L"Text Documents (" + textPattern + L")", textPattern);
-    addFilter(L"Markdown Documents (" + mdPattern + L")", mdPattern);
-    addFilter(L"Configuration Files (" + configPattern + L")", configPattern);
-    addFilter(L"Structured Data (" + dataPattern + L")", dataPattern);
-    addFilter(L"Source Code & Scripts (" + codePattern + L")", codePattern);
-    addFilter(L"All Files (*.*)", L"*.*");
-    filter.push_back(L'\0'); // double-null terminator
+    const std::wstring filter = SupportedFormats::BuildFilterString(true);
 
     // Large buffer so multiple selections and long paths fit.
     std::vector<wchar_t> buffer(32768, L'\0');
@@ -743,17 +764,8 @@ void AppWindow::OpenFileDialog() {
             }
         }
 
-        bool isFirst = true;
         for (const auto& file : files) {
-            EditorTab* active = GetActiveTab();
-            if (isFirst && active && active->GetFilePath().empty() && !active->IsDirty()) {
-                active->OpenFile(file);
-                UpdateWindowTitle();
-            } else {
-                CreateNewTab(file);
-            }
-            AddRecentFile(file);
-            isFirst = false;
+            OpenOrActivateFile(file);
         }
     }
 }
@@ -768,27 +780,7 @@ bool AppWindow::SaveCurrentFile(bool saveAs) {
             wcsncpy_s(buffer.data(), buffer.size(), active->GetFilePath().c_str(), _TRUNCATE);
         }
 
-        const std::wstring textPattern = SupportedFormats::BuildPattern(SupportedFormats::kText);
-        const std::wstring mdPattern = SupportedFormats::BuildPattern(SupportedFormats::kMarkdown);
-        const std::wstring configPattern = SupportedFormats::BuildPattern(SupportedFormats::kConfig);
-        const std::wstring dataPattern = SupportedFormats::BuildPattern(SupportedFormats::kData);
-        const std::wstring codePattern = SupportedFormats::BuildPattern(SupportedFormats::kCode);
-
-        std::wstring filter;
-        auto addFilter = [&filter](const std::wstring& desc, const std::wstring& pattern) {
-            filter += desc;
-            filter.push_back(L'\0');
-            filter += pattern;
-            filter.push_back(L'\0');
-        };
-
-        addFilter(L"Text Documents (" + textPattern + L")", textPattern);
-        addFilter(L"Markdown Documents (" + mdPattern + L")", mdPattern);
-        addFilter(L"Configuration Files (" + configPattern + L")", configPattern);
-        addFilter(L"Structured Data (" + dataPattern + L")", dataPattern);
-        addFilter(L"Source Code & Scripts (" + codePattern + L")", codePattern);
-        addFilter(L"All Files (*.*)", L"*.*");
-        filter.push_back(L'\0'); // double-null terminator
+        const std::wstring filter = SupportedFormats::BuildFilterString(false);
 
         OPENFILENAMEW ofn = { sizeof(OPENFILENAMEW) };
         ofn.hwndOwner = m_hWnd;
@@ -1392,17 +1384,7 @@ void AppWindow::OpenRecentFile(int index) {
         return;
     }
 
-    // Open file into current clean tab or new tab
-    EditorTab* active = GetActiveTab();
-    if (active && active->GetFilePath().empty() && !active->IsDirty()) {
-        active->OpenFile(path);
-        UpdateWindowTitle();
-    } else {
-        CreateNewTab(path);
-    }
-
-    // Move to top of MRU
-    AddRecentFile(path);
+    OpenOrActivateFile(path);
 }
 
 
@@ -1489,8 +1471,7 @@ bool AppWindow::Create(HINSTANCE hInstance, int nCmdShow, const std::vector<std:
         CreateNewTab();
     } else {
         for (const auto& f : initialFiles) {
-            CreateNewTab(f);
-            AddRecentFile(f);
+            OpenOrActivateFile(f);
         }
     }
 
@@ -1715,10 +1696,13 @@ LRESULT AppWindow::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
         if (pCds && pCds->cbData > 0 && pCds->lpData) {
             const wchar_t* pFilePath = reinterpret_cast<const wchar_t*>(pCds->lpData);
             if (pFilePath && *pFilePath) {
-                CreateNewTab(pFilePath);
-                AddRecentFile(pFilePath);
+                OpenOrActivateFile(pFilePath);
             }
         }
+        if (IsIconic(m_hWnd)) {
+            ShowWindow(m_hWnd, SW_RESTORE);
+        }
+        SetForegroundWindow(m_hWnd);
         return TRUE;
     }
     case WM_DROPFILES: {
@@ -1727,14 +1711,7 @@ LRESULT AppWindow::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
         for (UINT i = 0; i < fileCount; ++i) {
             wchar_t szFile[MAX_PATH];
             if (DragQueryFileW(hDrop, i, szFile, MAX_PATH) > 0) {
-                EditorTab* active = GetActiveTab();
-                if (i == 0 && active && active->GetFilePath().empty() && !active->IsDirty()) {
-                    active->OpenFile(szFile);
-                    UpdateWindowTitle();
-                } else {
-                    CreateNewTab(szFile);
-                }
-                AddRecentFile(szFile);
+                OpenOrActivateFile(szFile);
             }
         }
         DragFinish(hDrop);
@@ -1832,7 +1809,7 @@ void AppWindow::RegisterShellAssociations() {
     }
 
     // 3. Applications\LightNotePad.exe: Open with lists and Explorer integration
-    const std::wstring exeName = std::filesystem::path(exePath).filename().wstring();
+    const std::wstring exeName = PathFindFileNameW(exePath);
     const std::wstring appKeyPath = L"Software\\Classes\\Applications\\" + exeName;
     HKEY hKeyApp = nullptr;
     if (RegCreateKeyExW(HKEY_CURRENT_USER, appKeyPath.c_str(), 0, nullptr,

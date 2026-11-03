@@ -128,8 +128,12 @@ inline bool IsAtLineStart(std::wstring_view text, size_t i) {
 SyntaxLanguage SyntaxHighlighter::DetectLanguage(const std::wstring& filePath) {
     if (filePath.empty()) return SyntaxLanguage::None;
 
-    std::filesystem::path p(filePath);
-    std::wstring ext = p.extension().wstring();
+    size_t dot = filePath.find_last_of(L'.');
+    size_t slash = filePath.find_last_of(L"\\/");
+    if (dot == std::wstring::npos || (slash != std::wstring::npos && dot < slash)) {
+        return SyntaxLanguage::None;
+    }
+    std::wstring ext = filePath.substr(dot);
     for (auto& c : ext) c = static_cast<wchar_t>(towlower(c));
 
     if (ext == L".cpp" || ext == L".c" || ext == L".h" || ext == L".hpp" || ext == L".cs") {

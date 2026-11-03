@@ -217,8 +217,8 @@ void EditorTab::SetFilePath(const std::wstring& path) {
     if (path.empty()) {
         m_fileName = L"Untitled";
     } else {
-        std::filesystem::path fsPath(path);
-        m_fileName = fsPath.filename().wstring();
+        size_t slash = path.find_last_of(L"\\/");
+        m_fileName = (slash != std::wstring::npos) ? path.substr(slash + 1) : path;
     }
     ConfigureSyntaxMode();
 }

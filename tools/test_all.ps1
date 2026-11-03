@@ -140,5 +140,13 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
+# 9. Test Tab Lookup & Path Deduplication
+Write-Host "`n9. Testing Tab Lookup & Path Deduplication..."
+& powershell -ExecutionPolicy Bypass -File "$PSScriptRoot\run_tab_lookup_test.ps1"
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Tab lookup and deduplication tests failed!"
+    exit 1
+}
+
 Write-Host "`nAll LightNotePad verification tests passed successfully!" -ForegroundColor Green
 exit 0

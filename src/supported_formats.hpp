@@ -34,11 +34,24 @@ inline constexpr const wchar_t* kCode[] = {
     L".html", L".htm", L".css", L".sql", L".sh", L".bat", L".cmd", L".ps1"
 };
 
+inline constexpr const wchar_t* kAllExtensions[] = {
+    // Plain Text & Logs
+    L".txt", L".text", L".log", L".out", L".err",
+    // Markdown & Documentation
+    L".md", L".markdown",
+    // Configuration & Settings
+    L".ini", L".cfg", L".conf", L".config", L".inf", L".properties", L".env",
+    // Structured Data & Serialization
+    L".json", L".xml", L".yaml", L".yml", L".csv", L".tsv", L".toml",
+    // Source Code & Scripts
+    L".c", L".cpp", L".h", L".hpp", L".cs", L".js", L".ts", L".py",
+    L".html", L".htm", L".css", L".sql", L".sh", L".bat", L".cmd", L".ps1"
+};
+
 // Builds a semicolon-separated wildcard pattern such as "*.txt;*.text;*.log"
-template <size_t N>
-inline std::wstring BuildPattern(const wchar_t* const (&exts)[N]) {
+inline std::wstring BuildPattern(const wchar_t* const* exts, size_t count) {
     std::wstring out;
-    for (size_t i = 0; i < N; ++i) {
+    for (size_t i = 0; i < count; ++i) {
         if (!out.empty()) out += L';';
         out += L'*';
         out += exts[i];
@@ -46,45 +59,69 @@ inline std::wstring BuildPattern(const wchar_t* const (&exts)[N]) {
     return out;
 }
 
+template <size_t N>
+inline std::wstring BuildPattern(const wchar_t* const (&exts)[N]) {
+    return BuildPattern(exts, N);
+}
+
 // Returns all supported extensions across all categories
 inline std::vector<std::wstring> GetAllExtensions() {
     std::vector<std::wstring> exts;
-    auto add = [&](const auto& arr) {
-        for (const wchar_t* e : arr) exts.emplace_back(e);
-    };
-    add(kText);
-    add(kMarkdown);
-    add(kConfig);
-    add(kData);
-    add(kCode);
+    exts.reserve(std::size(kAllExtensions));
+    for (const wchar_t* ext : kAllExtensions) {
+        exts.emplace_back(ext);
+    }
     return exts;
 }
 
 // Builds an all-inclusive wildcard pattern covering EVERY supported extension
 inline std::wstring BuildAllSupportedPattern() {
-    std::wstring out;
-    auto exts = GetAllExtensions();
-    for (const auto& ext : exts) {
-        if (!out.empty()) out += L';';
-        out += L'*';
-        out += ext;
-    }
-    return out;
+    return BuildPattern(kAllExtensions, std::size(kAllExtensions));
 }
 
 // Checks if an extension or file path is in the supported formats list
 inline bool IsSupported(const std::wstring& extOrPath) {
-    std::wstring ext = extOrPath;
-    size_t dotPos = ext.rfind(L'.');
-    if (dotPos != std::wstring::npos) {
-        ext = ext.substr(dotPos);
+    size_t dot = extOrPath.find_last_of(L'.');
+    size_t slash = extOrPath.find_last_of(L"\\/");
+    if (dot == std::wstring::npos || (slash != std::wstring::npos && dot < slash)) {
+        return false;
     }
-    for (auto& ch : ext) ch = static_cast<wchar_t>(towlower(ch));
-    auto all = GetAllExtensions();
-    for (const auto& e : all) {
+    std::wstring ext = extOrPath.substr(dot);
+    for (auto& c : ext) c = static_cast<wchar_t>(towlower(c));
+    for (const wchar_t* e : kAllExtensions) {
         if (ext == e) return true;
     }
     return false;
+}
+
+inline std::wstring BuildFilterString(bool includeAllSupported) {
+    const std::wstring textPattern = BuildPattern(kText);
+    const std::wstring mdPattern = BuildPattern(kMarkdown);
+    const std::wstring configPattern = BuildPattern(kConfig);
+    const std::wstring dataPattern = BuildPattern(kData);
+    const std::wstring codePattern = BuildPattern(kCode);
+
+    std::wstring filter;
+    auto addFilter = [&filter](const std::wstring& desc, const std::wstring& pattern) {
+        filter += desc;
+        filter.push_back(L'\0');
+        filter += pattern;
+        filter.push_back(L'\0');
+    };
+
+    if (includeAllSupported) {
+        const std::wstring allSupported = BuildAllSupportedPattern();
+        addFilter(L"All Supported Documents", allSupported);
+    }
+
+    addFilter(L"Text Documents (" + textPattern + L")", textPattern);
+    addFilter(L"Markdown Documents (" + mdPattern + L")", mdPattern);
+    addFilter(L"Configuration Files (" + configPattern + L")", configPattern);
+    addFilter(L"Structured Data (" + dataPattern + L")", dataPattern);
+    addFilter(L"Source Code & Scripts (" + codePattern + L")", codePattern);
+    addFilter(L"All Files (*.*)", L"*.*");
+    filter.push_back(L'\0');
+    return filter;
 }
 
 } // namespace SupportedFormats

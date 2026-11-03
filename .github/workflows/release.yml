@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       tag_name:
-        description: 'Release Tag (e.g. v1.3.0)'
+        description: 'Release Tag (e.g. v1.4.0)'
         required: true
-        default: 'v1.3.0'
+        default: 'v1.4.0'
 
 jobs:
   release:
@@ -41,7 +41,7 @@ jobs:
         shell: powershell
         run: |
           $tag = if ("${{ github.ref_type }}" -eq "tag") { "${{ github.ref_name }}" } else { "${{ github.event.inputs.tag_name }}" }
-          if (-not $tag) { $tag = "v1.3.0" }
+          if (-not $tag) { $tag = "v1.4.0" }
 
           # Prepare zip payload
           New-Item -ItemType Directory -Path "dist" -Force | Out-Null

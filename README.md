@@ -7,7 +7,7 @@
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://isocpp.org/)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-0078D6.svg)](https://www.microsoft.com/windows)
 [![Release](https://img.shields.io/github/v/release/ashahin1/LightNotePad?color=blue)](https://github.com/ashahin1/LightNotePad/releases)
-[![Binary Size](https://img.shields.io/badge/Binary%20Size-299%20KB-brightgreen.svg)]()
+[![Binary Size](https://img.shields.io/badge/Binary%20Size-296%20KB-brightgreen.svg)]()
 [![RAM Usage](https://img.shields.io/badge/Private%20RAM-%3C%204%20MB-success.svg)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -24,7 +24,7 @@ Measured on Windows 11 (64-bit):
 
 | Metric | LightNotePad | Windows 11 Notepad (WinUI) | Difference |
 | :--- | :--- | :--- | :--- |
-| **Standalone Binary Size** | **299 KB** | ~50+ MB (Packaged App) | **>165× smaller** |
+| **Standalone Binary Size** | **296 KB** | ~50+ MB (Packaged App) | **>168× smaller** |
 | **Cold Startup Latency** | **~185 ms** | ~5,000 ms | **>25× faster** |
 | **Private Working Set RAM** | **3.5 MB** | 17.5 MB | **5× lower RAM** |
 | **External Runtime DLLs** | **0** (Native Win32 only) | Multiple WinRT/XAML packages | Zero bloat |
@@ -49,6 +49,7 @@ Measured on Windows 11 (64-bit):
 * **Closed-Tabs History & State Recovery**: Maintains a LIFO closed-tabs history stack restoring caret selection, scroll position, and zoom level upon reopen.
 * **Tab Management**: Includes active tab accents, close buttons (`×`), middle-click tab closing, and a quick new tab (`+`) button.
 * **Smart Single-Instance & Multi-Window**: Opening files from Windows Explorer forwards them into tabs in the active window (`WM_COPYDATA`). Press `Ctrl+Shift+N` (or pass `--new-window`) to spawn a completely independent window instance.
+* **Smart Tab Deduplication & Document Lookup**: Opening a file that is already loaded in any tab (via Explorer, `File -> Open`, Recent Files, Drag & Drop, or CLI) activates and focuses the existing tab, restores minimized windows, and reuses clean untitled tabs rather than creating duplicate tabs. Features NTFS physical file index verification to detect aliases and hard links.
 
 ### 🪟 Windows 10/11 Native Integration
 * **Immersive Dark & Light Themes**: Seamless title bar theming (`DWMWA_USE_IMMERSIVE_DARK_MODE`), custom dark menu bar (Win32 UAH rendering), dark popup menus (`uxtheme.dll`), and custom dark status bar. Follows system theme changes automatically.
